@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XYPI Experiment 3</title>
+  <link rel="stylesheet" href="../../viewer/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-row">
+      <div>
+        <h1>XYPI Experiment 3</h1>
+        <p class="subtitle">Points · lines · multi-polygons · radial time</p>
+      </div>
+      <div class="mix-controls">
+        <button id="play-btn" type="button">&#9654; Play</button>
+        <button id="stop-btn" type="button">&#9632; Stop</button>
+        <button id="mute-all-btn" type="button">Mute all</button>
+        <span id="status">Loading…</span>
+      </div>
+    </div>
+  </header>
+  <main id="mixer"></main>
+  <script src="../../viewer/player.js"></script>
+  <script>
+    window.XYPI_DEFAULT_CHANNELS = [
+      "./output/pts_x_time.geojson",
+      "./output/line_y_time.geojson",
+      "./output/mlines_x_time.geojson",
+      "./output/mpoly_y_time.geojson",
+      "./output/radial_note_octave.geojson",
+    ];
+    document.addEventListener("DOMContentLoaded", () => XYPIPlayer.init());
+  </script>
+</body>
+</html>

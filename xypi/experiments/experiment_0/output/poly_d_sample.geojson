@@ -1,0 +1,214 @@
+{
+  "type": "FeatureCollection",
+  "properties": {
+    "xypi": {
+      "version": 3,
+      "bpm": 150,
+      "channel": {
+        "name": "poly_d_sample",
+        "spatial_pattern_id": "poly_d",
+        "x_axis": "pitch",
+        "y_axis": "time",
+        "sound": {
+          "mode": "sample",
+          "root_midi": 0,
+          "pitch_range": 4,
+          "note_semitones": 12
+        },
+        "time": {
+          "n_steps": 8,
+          "bpm": 150,
+          "beats_per_step": 1.0,
+          "time_pattern": 1,
+          "flow": "y"
+        },
+        "space": {
+          "mode": "points-0",
+          "pitch_cells": 11,
+          "octave_cells": 4,
+          "center_x": null,
+          "center_y": null
+        }
+      },
+      "grid": {
+        "time": 8,
+        "pitch": 11
+      },
+      "grid_layout": {
+        "time_flow": "y",
+        "time_cells": 8,
+        "pitch_cells": 11,
+        "time_axis": "y",
+        "pitch_axis": "x"
+      },
+      "source_points": [
+        {
+          "x": 10.0,
+          "y": 10.0
+        },
+        {
+          "x": 16.0,
+          "y": 9.0
+        },
+        {
+          "x": 17.0,
+          "y": 14.0
+        },
+        {
+          "x": 13.0,
+          "y": 16.0
+        },
+        {
+          "x": 9.0,
+          "y": 13.0
+        }
+      ],
+      "events": [
+        {
+          "step": 0,
+          "time_beats": 0.0,
+          "time_sec": 0.0,
+          "x": 16.0,
+          "y": 9.0,
+          "midi": 0,
+          "value": 4.0,
+          "hit": true,
+          "inside": true,
+          "grid_col": 9,
+          "grid_row": 0
+        },
+        {
+          "step": 1,
+          "time_beats": 1.0,
+          "time_sec": 0.4,
+          "x": 10.0,
+          "y": 10.0,
+          "midi": 0,
+          "value": 1.0,
+          "hit": true,
+          "inside": true,
+          "grid_col": 1,
+          "grid_row": 1
+        },
+        {
+          "step": 2,
+          "time_beats": 2.0,
+          "time_sec": 0.8,
+          "x": 0.0,
+          "y": 0.0,
+          "midi": 0,
+          "value": 0.0,
+          "hit": false,
+          "inside": false,
+          "grid_col": -1,
+          "grid_row": -1
+        },
+        {
+          "step": 3,
+          "time_beats": 3.0,
+          "time_sec": 1.2000000000000002,
+          "x": 0.0,
+          "y": 0.0,
+          "midi": 0,
+          "value": 0.0,
+          "hit": false,
+          "inside": false,
+          "grid_col": -1,
+          "grid_row": -1
+        },
+        {
+          "step": 4,
+          "time_beats": 4.0,
+          "time_sec": 1.6,
+          "x": 9.0,
+          "y": 13.0,
+          "midi": 0,
+          "value": 1.0,
+          "hit": true,
+          "inside": true,
+          "grid_col": 0,
+          "grid_row": 4
+        },
+        {
+          "step": 5,
+          "time_beats": 5.0,
+          "time_sec": 2.0,
+          "x": 17.0,
+          "y": 14.0,
+          "midi": 0,
+          "value": 1.0,
+          "hit": true,
+          "inside": true,
+          "grid_col": 10,
+          "grid_row": 5
+        },
+        {
+          "step": 6,
+          "time_beats": 6.0,
+          "time_sec": 2.4000000000000004,
+          "x": 0.0,
+          "y": 0.0,
+          "midi": 0,
+          "value": 0.0,
+          "hit": false,
+          "inside": false,
+          "grid_col": -1,
+          "grid_row": -1
+        },
+        {
+          "step": 7,
+          "time_beats": 7.0,
+          "time_sec": 2.8000000000000003,
+          "x": 13.0,
+          "y": 16.0,
+          "midi": 0,
+          "value": 3.0,
+          "hit": true,
+          "inside": true,
+          "grid_col": 5,
+          "grid_row": 7
+        }
+      ]
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "poly_d",
+      "properties": {
+        "xypi_id": "poly_d"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              10.0,
+              10.0
+            ],
+            [
+              16.0,
+              9.0
+            ],
+            [
+              17.0,
+              14.0
+            ],
+            [
+              13.0,
+              16.0
+            ],
+            [
+              9.0,
+              13.0
+            ],
+            [
+              10.0,
+              10.0
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

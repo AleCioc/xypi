@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XYPI Mixer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="header-row">
+      <div>
+        <h1>XYPI Mixer</h1>
+        <p class="subtitle">Geospatial pattern playback · space mode points-0</p>
+      </div>
+      <div class="mix-controls">
+        <button id="play-btn" type="button">&#9654; Play</button>
+        <button id="stop-btn" type="button">&#9632; Stop</button>
+        <button id="mute-all-btn" type="button">Mute all</button>
+        <span id="status">Loading…</span>
+      </div>
+    </div>
+  </header>
+
+  <main id="mixer"></main>
+
+  <script src="player.js"></script>
+  <script>
+    const DEFAULT_CHANNELS = [
+      "../experiments/experiment_0/output/poly_a_synth.geojson",
+      "../experiments/experiment_0/output/poly_b_synth.geojson",
+      "../experiments/experiment_0/output/poly_c_sample.geojson",
+      "../experiments/experiment_0/output/poly_d_sample.geojson",
+    ];
+    window.XYPI_DEFAULT_CHANNELS = DEFAULT_CHANNELS;
+    document.addEventListener("DOMContentLoaded", () => XYPIPlayer.init());
+  </script>
+</body>
+</html>
