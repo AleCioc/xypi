@@ -63,6 +63,10 @@ l4 = agent("line", [(0.9,0.4), (0.4, 0.9)],
     sound="kick")
 
 
+# IMPLEMENT SOMETHING LIKE: 
+
+l5 = place("hospitals", steps=16, direction="vertical", bpm=160)
+
 
 
 
