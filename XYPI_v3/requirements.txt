@@ -1,0 +1,3 @@
+# No mandatory third-party Python packages.
+# Optional: pip install certifi
+# (only useful if your macOS Python certificate store is broken)

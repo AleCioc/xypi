@@ -18,4 +18,9 @@ XYPI_v2/cache/*
 XYPI_v2/runtime/*
 
 
+XYPI_v3/__pycache__/*
+XYPI_v3/cache/*
+XYPI_v3/runtime/*
+
+
 ICLC27_XYPI/iclc2027.pdf

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>XYPI — Map + Live Grids</title>
+<style>
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; }
+body { margin: 0; overflow: hidden; background: #f4f1ea; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+#stage { position: fixed; inset: 0; overflow: hidden; }
+#map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #faf9f5; }
+#codeSurface { position: absolute; inset: 0; z-index: 10; overflow: hidden; transition: opacity .15s ease; }
+#highlightLayer, #liveEditor { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border: 0; padding: 64px 76px 118px 64px; font: 16px/1.58 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; tab-size: 4; white-space: pre; overflow: auto; scrollbar-gutter: stable; }
+#highlightLayer { pointer-events: none; color: #eef2f5; background: transparent; scrollbar-width: none; text-shadow: 0 1px 3px rgba(0,0,0,.98), 0 0 8px rgba(0,0,0,.95), 0 0 20px rgba(0,0,0,.72), 0 0 34px rgba(0,0,0,.42); }
+#highlightLayer::-webkit-scrollbar { display: none; }
+#liveEditor { resize: none; outline: 0; background: transparent; color: transparent; caret-color: #fff; -webkit-text-fill-color: transparent; }
+#liveEditor::selection { background: rgba(130,170,255,.30); color: transparent; }
+.tok-keyword { color: #db9cff; } .tok-string { color: #c7f08a; } .tok-comment { color: #aab7c2; font-style: italic; }
+.tok-number { color: #ff9c75; } .tok-constant { color: #ffd86d; } .tok-xypi { color: #79b8ff; font-weight: 700; }
+.tok-fn { color: #83e7f4; } .tok-op { color: #92e5ff; }
+#uiToggle { position: absolute; z-index: 60; top: 14px; left: 14px; min-width: 58px; }
+#topHud { position: absolute; z-index: 40; top: 14px; right: 18px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; justify-content: flex-end; pointer-events: auto; }
+#status { max-width: 440px; padding: 5px 8px; border-radius: 5px; background: rgba(8,10,13,.52); color: rgba(255,255,255,.80); font: 10.5px/1.3 ui-monospace, monospace; backdrop-filter: blur(4px); }
+button, select { border: 1px solid rgba(255,255,255,.17); border-radius: 5px; padding: 5px 8px; color: rgba(255,255,255,.90); background: rgba(8,10,13,.52); cursor: pointer; font: 10.5px/1 ui-monospace, monospace; backdrop-filter: blur(4px); }
+button:hover, select:hover { background: rgba(8,10,13,.75); }
+#applyButton { background: rgba(48,112,69,.72); }
+#playButton.playing { background: rgba(48,112,69,.78); }
+#controlToggle { display: inline-flex; border-radius: 5px; overflow: hidden; border: 1px solid rgba(255,255,255,.17); }
+#controlToggle button { border: 0; border-radius: 0; margin: 0; }
+#controlToggle button.active { background: rgba(48,112,69,.78); }
+#legend { position: absolute; z-index: 26; left: 56px; bottom: 58px; max-width: calc(100vw - 72px); display: flex; gap: 10px; flex-wrap: wrap; padding: 6px 9px; border-radius: 5px; background: rgba(8,10,13,.42); color: rgba(255,255,255,.76); font: 10px/1.3 ui-monospace, monospace; pointer-events: none; backdrop-filter: blur(4px); }
+#editorMessage { position: absolute; z-index: 28; left: 64px; top: 35px; color: rgba(255,255,255,.66); font: 10.5px/1.2 ui-monospace, monospace; pointer-events: none; max-width: 62vw; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
+#editorMessage.error { color: #ffaea6; } #editorMessage.ok { color: #a7efb5; }
+.item { display: inline-flex; align-items: center; gap: 5px; } .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+#horizontalIndicators { position: absolute; z-index: 31; left: 56px; right: 18px; bottom: 14px; display: flex; flex-direction: column-reverse; gap: 4px; pointer-events: none; }
+.h-track { display: flex; align-items: center; gap: 6px; min-height: 18px; }
+.h-label { width: 38px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; color: rgba(255,255,255,.72); font: 9px/1 ui-monospace, monospace; text-shadow: 0 1px 2px #000; }
+.h-cells { flex: 1; height: 14px; display: flex; gap: 4px; }
+#verticalIndicators { position: absolute; z-index: 31; left: 14px; top: 64px; bottom: 80px; display: flex; gap: 4px; pointer-events: none; }
+.v-track { width: 18px; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.v-label { width: 14px; writing-mode: vertical-rl; transform: rotate(180deg); overflow: hidden; white-space: nowrap; color: rgba(255,255,255,.72); font: 9px/1 ui-monospace, monospace; text-shadow: 0 1px 2px #000; }
+.v-cells { flex: 1; width: 14px; display: flex; flex-direction: column-reverse; gap: 4px; }
+.seq-cell { flex: 1; min-width: 5px; min-height: 5px; border-radius: 3px; background: rgba(255,255,255,.11); border: 1px solid rgba(255,255,255,.16); box-shadow: 0 1px 3px rgba(0,0,0,.32); transition: background .04s linear, box-shadow .04s linear, border-color .04s linear, transform .04s linear; }
+.seq-cell.occupied { background: rgba(108,158,255,.40); border-color: rgba(155,190,255,.34); }
+.seq-cell.active { background: rgba(255,225,125,1); border-color: #fff7d8; box-shadow: 0 0 4px #fff, 0 0 12px rgba(255,211,112,1), 0 0 22px rgba(255,180,70,.72); transform: scale(1.08); }
+body.code-control #map { pointer-events: none; }
+body.map-control #codeSurface, body.map-control #editorMessage { opacity: 0; pointer-events: none; }
+body.map-control #map { cursor: grab; touch-action: none; }
+body.map-control #map.dragging { cursor: grabbing; }
+body.ui-hidden #topHud, body.ui-hidden #legend, body.ui-hidden #codeSurface, body.ui-hidden #editorMessage { opacity: 0; pointer-events: none; }
+body.ui-hidden #uiToggle { opacity: 1; pointer-events: auto; }
+@media (max-width: 820px) { #highlightLayer, #liveEditor { padding: 60px 20px 110px 48px; font-size: 13px; } #editorMessage { left: 48px; } #status { display: none; } #topHud { left: 14px; right: 14px; } #legend { display:none; } }
+</style>
+</head>
+<body class="code-control">
+<div id="stage">
+  <canvas id="map"></canvas>
+  <button id="uiToggle" type="button" title="Hide or show interface overlays">Hide UI</button>
+  <div id="codeSurface"><pre id="highlightLayer" aria-hidden="true"><code id="highlightCode"></code></pre><textarea id="liveEditor" spellcheck="false" aria-label="XYPI live editor"></textarea></div>
+  <div id="editorMessage">Connecting to XYPI…</div>
+  <div id="topHud">
+    <div id="controlToggle"><button id="codeControlBtn" type="button" class="active">Code</button><button id="mapControlBtn" type="button">Map</button></div>
+    <select id="locationSelect" title="Map location"></select>
+    <div id="status">connecting…</div>
+    <button id="playButton" type="button">▶ OSC</button>
+    <button id="stopButton" type="button">■ Stop</button>
+    <button id="reloadButton" type="button">Reload</button>
+    <button id="applyButton" type="button">Apply</button>
+  </div>
+  <div id="horizontalIndicators"></div>
+  <div id="verticalIndicators"></div>
+  <div id="legend">Waiting for map and live declarations.</div>
+</div>
+<script>
+const canvas=document.getElementById("map"),ctx=canvas.getContext("2d");
+const statusEl=document.getElementById("status"),legendEl=document.getElementById("legend"),editor=document.getElementById("liveEditor");
+const highlightLayer=document.getElementById("highlightLayer"),highlightCode=document.getElementById("highlightCode"),editorMessage=document.getElementById("editorMessage");
+const locationSelect=document.getElementById("locationSelect"),playButton=document.getElementById("playButton"),stopButton=document.getElementById("stopButton");
+const horizontalIndicators=document.getElementById("horizontalIndicators"),verticalIndicators=document.getElementById("verticalIndicators"),uiToggle=document.getElementById("uiToggle");
+const API_BASE=window.location.protocol==="file:"?"http://127.0.0.1:8080":"",SERVER_HINT=API_BASE||window.location.origin,MAP_PAD=22;
+let mapData=null,state=null,transport=null,editorDirty=false,mapFetchBusy=false,controlMode="code",drag=null;
+let view={panX:0,panY:0,scale:1,minScale:.35,maxScale:8},streetPathBase=null,stateSignature="",indicatorSignature="";
+let cornerEffects=[],lastAgentEvents=new Map(),effectsFrame=null;
+const PY_KEYWORDS=new Set(["and","as","assert","async","await","break","class","continue","def","del","elif","else","except","finally","for","from","global","if","import","in","is","lambda","nonlocal","not","or","pass","raise","return","try","while","with","yield","match","case"]);
+const PY_CONSTANTS=new Set(["True","False","None"]);
+const XYPI_WORDS=new Set(["grid","agent","moving_agent","play","poi","pois","poi_pattern","schools","hospitals","schools_pattern","hospitals_pattern","random_walk","straightish","backtrack","clockwiseish","anticlockwiseish","shortest_street","longest_street","point_attract","steps","bpm","direction","movement","horizontal","vertical","linear","backforth","random","sound","root_midi","pitch_range","max_points"]);
+function apiUrl(path){return `${API_BASE}${path}`;}
+function escapeHtml(text){return text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function token(cls,text){return `<span class="${cls}">${escapeHtml(text)}</span>`;}
+function highlightPython(src){let out="",i=0;while(i<src.length){const ch=src[i];if(ch==="#"){let j=i;while(j<src.length&&src[j]!=="\n")j++;out+=token("tok-comment",src.slice(i,j));i=j;continue;}if(ch==="'"||ch==='"'){const q=ch,tr=src.slice(i,i+3)===q.repeat(3),st=tr?3:1;let j=i+st;while(j<src.length){if(src[j]==="\\"){j+=2;continue;}if(tr&&src.slice(j,j+3)===q.repeat(3)){j+=3;break;}if(!tr&&src[j]===q){j++;break;}j++;}out+=token("tok-string",src.slice(i,j));i=j;continue;}if((ch>="0"&&ch<="9")||(ch==="."&&/[0-9]/.test(src[i+1]||""))){let j=i+1;while(j<src.length&&/[0-9A-Fa-fxXoObBeEjJ_\.\+\-]/.test(src[j]))j++;out+=token("tok-number",src.slice(i,j));i=j;continue;}if(/[A-Za-z_]/.test(ch)){let j=i+1;while(j<src.length&&/[A-Za-z0-9_]/.test(src[j]))j++;const w=src.slice(i,j);let k=j;while(k<src.length&&/[ \t]/.test(src[k]))k++;if(PY_KEYWORDS.has(w))out+=token("tok-keyword",w);else if(PY_CONSTANTS.has(w))out+=token("tok-constant",w);else if(XYPI_WORDS.has(w)||/^l\d+$/.test(w))out+=token("tok-xypi",w);else if(src[k]==="(")out+=token("tok-fn",w);else out+=escapeHtml(w);i=j;continue;}out+="=+-*/%<>!|&^~:@".includes(ch)?token("tok-op",ch):escapeHtml(ch);i++;}return out;}
+function updateHighlight(){highlightCode.innerHTML=highlightPython(editor.value)+"\n";highlightLayer.scrollTop=editor.scrollTop;highlightLayer.scrollLeft=editor.scrollLeft;}
+function canvasSize(){return canvas.getBoundingClientRect();}
+function baseXY(point){const r=canvasSize();return [MAP_PAD+point[0]*(r.width-2*MAP_PAD),r.height-MAP_PAD-point[1]*(r.height-2*MAP_PAD)];}
+function xy(point){const r=canvasSize(),p=baseXY(point),cx=r.width/2,cy=r.height/2;return [cx+(p[0]-cx)*view.scale+view.panX,cy+(p[1]-cy)*view.scale+view.panY];}
+function transformBasePoint(p){const r=canvasSize(),cx=r.width/2,cy=r.height/2;return [cx+(p[0]-cx)*view.scale+view.panX,cy+(p[1]-cy)*view.scale+view.panY];}
+function buildStreetPath(){streetPathBase=new Path2D();if(!mapData?.ready)return;for(const edge of mapData.streets?.edges||[]){const g=edge.geometry||[];if(g.length<2)continue;const p0=baseXY(g[0]);streetPathBase.moveTo(p0[0],p0[1]);for(let i=1;i<g.length;i++){const p=baseXY(g[i]);streetPathBase.lineTo(p[0],p[1]);}}}
+function resize(){const dpr=window.devicePixelRatio||1,r=canvasSize();canvas.width=Math.max(1,Math.round(r.width*dpr));canvas.height=Math.max(1,Math.round(r.height*dpr));ctx.setTransform(dpr,0,0,dpr,0,0);buildStreetPath();draw();}
+function resetView(){view={panX:0,panY:0,scale:1,minScale:.35,maxScale:8};draw();}
+function setControlMode(mode){controlMode=mode;document.body.classList.toggle("code-control",mode==="code");document.body.classList.toggle("map-control",mode==="map");document.getElementById("codeControlBtn").classList.toggle("active",mode==="code");document.getElementById("mapControlBtn").classList.toggle("active",mode==="map");}
+function channelColour(index,alpha=1){return `hsla(${(205+index*83)%360},78%,62%,${alpha})`;}
+function alphaColour(colour,alpha){if(colour?.startsWith("hsl("))return colour.slice(0,-1)+` / ${alpha})`;return colour||`rgba(255,255,255,${alpha})`;}
+function drawMessage(text){const r=canvasSize();ctx.fillStyle="#777";ctx.font="14px system-ui,sans-serif";ctx.textAlign="center";ctx.fillText(text,r.width/2,r.height/2);ctx.textAlign="left";}
+function drawStreets(){if(!streetPathBase)return;const r=canvasSize(),cx=r.width/2,cy=r.height/2;ctx.save();ctx.translate(cx+view.panX,cy+view.panY);ctx.scale(view.scale,view.scale);ctx.translate(-cx,-cy);ctx.strokeStyle="rgba(45,49,53,.61)";ctx.lineWidth=1.05/Math.max(view.scale,.2);ctx.lineCap="round";ctx.lineJoin="round";ctx.stroke(streetPathBase);ctx.restore();}
+function gridRect(channel,step,row){const r=canvasSize(),pad=MAP_PAD,w=r.width-2*pad,h=r.height-2*pad,cols=channel.time_flow==="x"?channel.n_steps:channel.pitch_cells,rows=channel.time_flow==="x"?channel.pitch_cells:channel.n_steps,col=channel.time_flow==="x"?step:row,visualRow=channel.time_flow==="x"?row:step;return {x:pad+col*w/cols,y:pad+(rows-1-visualRow)*h/rows,w:w/cols,h:h/rows};}
+function fillBaseRect(rect,fill){const p0=transformBasePoint([rect.x,rect.y]),p1=transformBasePoint([rect.x+rect.w,rect.y+rect.h]);ctx.fillStyle=fill;ctx.fillRect(Math.min(p0[0],p1[0]),Math.min(p0[1],p1[1]),Math.abs(p1[0]-p0[0]),Math.abs(p1[1]-p0[1]));}
+function drawGrid(channel,index){const r=canvasSize(),pad=MAP_PAD,w=r.width-2*pad,h=r.height-2*pad,cols=channel.time_flow==="x"?channel.n_steps:channel.pitch_cells,rows=channel.time_flow==="x"?channel.pitch_cells:channel.n_steps;ctx.strokeStyle=channelColour(index,.19);ctx.lineWidth=.85;for(let c=0;c<=cols;c++){const x0=pad+c*w/cols,p0=transformBasePoint([x0,pad]),p1=transformBasePoint([x0,pad+h]);ctx.beginPath();ctx.moveTo(p0[0],p0[1]);ctx.lineTo(p1[0],p1[1]);ctx.stroke();}for(let rr=0;rr<=rows;rr++){const y0=pad+rr*h/rows,p0=transformBasePoint([pad,y0]),p1=transformBasePoint([pad+w,y0]);ctx.beginPath();ctx.moveTo(p0[0],p0[1]);ctx.lineTo(p1[0],p1[1]);ctx.stroke();}for(const cell of channel.cells||[])fillBaseRect(gridRect(channel,cell.step,cell.row),channelColour(index,.12));ctx.fillStyle=channelColour(index,.88);for(const point of channel.points||[]){const p=xy([point.x,point.y]);ctx.beginPath();ctx.arc(p[0],p[1],3.8,0,Math.PI*2);ctx.fill();ctx.strokeStyle="rgba(255,255,255,.60)";ctx.lineWidth=.7;ctx.stroke();}}
+function drawLayer(layer){if(!layer.coords?.length)return;const pts=layer.coords.map(xy);ctx.lineWidth=2.6;ctx.strokeStyle=layer.colour;if(layer.shape==="points"){ctx.fillStyle=layer.colour;for(const p of pts){ctx.beginPath();ctx.arc(p[0],p[1],5.5,0,Math.PI*2);ctx.fill();}}else if(layer.shape==="line"){for(const path of layer.street_paths||[]){if(path.length<2)continue;ctx.beginPath();path.map(xy).forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke();}}else{ctx.fillStyle=alphaColour(layer.colour,.11);ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();ctx.fill();ctx.stroke();}}
+function drawAgent(agent,layer){if(!layer)return;const p=xy([agent.x,agent.y]);ctx.beginPath();ctx.arc(p[0],p[1],6.5,0,Math.PI*2);ctx.fillStyle=layer.colour;ctx.fill();ctx.strokeStyle="rgba(10,10,10,.85)";ctx.lineWidth=1.4;ctx.stroke();}
+function drawCornerEffects(now=performance.now()){for(const effect of cornerEffects){const t=Math.max(0,Math.min(1,(now-effect.start)/1450)),p=xy([effect.x,effect.y]),ease=1-Math.pow(1-t,2),alpha=Math.pow(1-t,1.35),outer=10+62*ease,inner=7+30*ease;ctx.save();ctx.shadowColor=alphaColour(effect.colour,.95*alpha);ctx.shadowBlur=18*(1-t)+4;ctx.beginPath();ctx.arc(p[0],p[1],outer,0,Math.PI*2);ctx.strokeStyle=alphaColour(effect.colour,alpha);ctx.lineWidth=4.2-2.2*t;ctx.stroke();ctx.beginPath();ctx.arc(p[0],p[1],inner,0,Math.PI*2);ctx.strokeStyle=`rgba(255,255,255,${.85*alpha})`;ctx.lineWidth=2.3-1.2*t;ctx.stroke();ctx.beginPath();ctx.arc(p[0],p[1],8+8*ease,0,Math.PI*2);ctx.fillStyle=alphaColour(effect.colour,.42*alpha);ctx.fill();ctx.restore();}}
+function animateCornerEffects(now){effectsFrame=null;cornerEffects=cornerEffects.filter(effect=>now-effect.start<1450);draw(now);if(cornerEffects.length)effectsFrame=requestAnimationFrame(animateCornerEffects);}
+function captureCornerEffects(agents){const layers=Object.fromEntries((state?.layers||[]).map(layer=>[layer.name,layer]));for(const agent of agents||[]){const event=agent.last_event,stamp=Number(event?.time||0),previous=lastAgentEvents.get(agent.name);if(previous===undefined){lastAgentEvents.set(agent.name,stamp);continue;}if(stamp>0&&stamp!==previous){lastAgentEvents.set(agent.name,stamp);cornerEffects.push({x:Number(event.x),y:Number(event.y),start:performance.now(),colour:layers[agent.layer]?.colour||"hsl(45 90% 60%)"});}}if(cornerEffects.length&&!effectsFrame)effectsFrame=requestAnimationFrame(animateCornerEffects);}
+function draw(now=performance.now()){const r=canvasSize();ctx.clearRect(0,0,r.width,r.height);ctx.fillStyle="#faf9f5";ctx.fillRect(0,0,r.width,r.height);if(!mapData?.ready){drawMessage(state?.status==="error"?state.error:"Loading OpenStreetMap data…");return;}drawStreets();for(const [i,channel] of (state?.channels||[]).entries())drawGrid(channel,i);const layers=Object.fromEntries((state?.layers||[]).map(layer=>[layer.name,layer]));for(const layer of state?.layers||[])drawLayer(layer);for(const agent of state?.agents||[])drawAgent(agent,layers[agent.layer]);drawCornerEffects(now);}
+function updateLegend(){const parts=[];(state?.channels||[]).forEach((c,i)=>parts.push(`<span class="item"><span class="dot" style="background:${channelColour(i)}"></span>${c.name} · ${c.category} · ${c.direction} · ${c.movement} · ${c.bpm} bpm · OSC</span>`));(state?.agents||[]).forEach(a=>parts.push(`<span class="item"><span class="dot" style="background:${(state.layers||[]).find(l=>l.name===a.layer)?.colour||'#fff'}"></span>${a.name} · street · ${a.behaviour||'stopped'} · ${a.sound}</span>`));legendEl.innerHTML=parts.join("")||"No grids or agents in live.py.";}
+function occupiedSteps(channel){return new Set((channel.cells||[]).map(c=>c.step));}
+function seqCells(channel){const occupied=occupiedSteps(channel),frag=document.createDocumentFragment();for(let i=0;i<channel.n_steps;i++){const cell=document.createElement("span");cell.className="seq-cell"+(occupied.has(i)?" occupied":"")+(channel.current_step===i?" active":"");frag.appendChild(cell);}return frag;}
+function rebuildIndicators(){const sig=JSON.stringify((state?.channels||[]).map(c=>[c.name,c.time_flow,c.n_steps,c.cells?.map(x=>x.step)]));if(sig===indicatorSignature)return;indicatorSignature=sig;horizontalIndicators.innerHTML="";verticalIndicators.innerHTML="";for(const channel of state?.channels||[]){if(channel.time_flow==="x"){const track=document.createElement("div"),label=document.createElement("div"),cells=document.createElement("div");track.className="h-track";label.className="h-label";cells.className="h-cells";label.textContent=channel.name;cells.dataset.channel=channel.name;cells.appendChild(seqCells(channel));track.append(label,cells);horizontalIndicators.appendChild(track);}else{const track=document.createElement("div"),label=document.createElement("div"),cells=document.createElement("div");track.className="v-track";label.className="v-label";cells.className="v-cells";label.textContent=channel.name;cells.dataset.channel=channel.name;cells.appendChild(seqCells(channel));track.append(label,cells);verticalIndicators.appendChild(track);}}}
+function updateIndicatorSteps(){for(const channel of state?.channels||[]){const root=document.querySelector(`[data-channel="${CSS.escape(channel.name)}"]`);if(!root)continue;[...root.children].forEach((cell,i)=>cell.classList.toggle("active",channel.current_step===i));}}
+async function fetchJSON(path){const response=await fetch(`${apiUrl(path)}?t=${Date.now()}`,{cache:"no-store"});if(!response.ok)throw new Error(`${response.status} ${response.statusText}`);return response.json();}
+async function pollMap(){if(mapFetchBusy)return;mapFetchBusy=true;try{const data=await fetchJSON("/api/map");if(data.ready){mapData=data;buildStreetPath();draw();mapFetchBusy=false;return;}statusEl.textContent="OpenStreetMap data downloading…";}catch(err){statusEl.textContent=`Cannot reach XYPI at ${SERVER_HINT}: ${err.message}`;}mapFetchBusy=false;setTimeout(pollMap,800);}
+function applyState(next){const structure=JSON.stringify({status:next.status,location:next.location,poi_counts:next.poi_counts,channels:(next.channels||[]).map(c=>[c.name,c.category,c.time_flow,c.n_steps,c.pitch_cells,c.bpm,c.movement,c.sound,c.cells,c.points]),layers:next.layers,live:next.live});const changed=structure!==stateSignature;stateSignature=structure;state=next;if(changed){updateLegend();rebuildIndicators();draw();}const loc=state.location||{},counts=state.poi_counts||{};statusEl.textContent=`${loc.name||'map'} · ${loc.street_segments||0} streets · H ${counts.hospitals||0} · S ${counts.schools||0} · R ${counts.restaurants||0} · ${(state.channels||[]).length} grid(s) · ${(state.agents||[]).length} agent(s)`;if(state.live?.error&&!editorDirty)setEditorMessage(lastErrorLines(state.live.error),"error");}
+async function pollState(){try{applyState(await fetchJSON("/api/state"));}catch(err){statusEl.textContent=`Cannot reach XYPI at ${SERVER_HINT}: ${err.message}`;}setTimeout(pollState,1200);}
+async function pollTransport(){try{transport=await fetchJSON("/api/transport");if(state){const steps=transport.steps||{};for(const channel of state.channels||[])channel.current_step=Number.isInteger(steps[channel.name])?steps[channel.name]:-1;const agents=transport.agents||state.agents||[];captureCornerEffects(agents);state.agents=agents;playButton.classList.toggle("playing",!!transport.playing);playButton.textContent=transport.playing?"▶ OSC running":"▶ OSC";updateIndicatorSteps();draw();}}catch(_err){}setTimeout(pollTransport,110);}
+function lastErrorLines(text){return String(text).split("\n").filter(Boolean).slice(-3).join(" · ").slice(0,420);}
+function setEditorMessage(text,kind=""){editorMessage.textContent=text;editorMessage.className=kind;}
+async function loadLiveSource(){try{const response=await fetch(`${apiUrl("/api/live")}?t=${Date.now()}`,{cache:"no-store"});if(!response.ok)throw new Error(`${response.status} ${response.statusText}`);editor.value=await response.text();updateHighlight();editorDirty=false;setEditorMessage("live.py loaded · Cmd/Ctrl+Enter applies","ok");}catch(err){setEditorMessage(`Could not load live.py from ${SERVER_HINT}: ${err.message}`,"error");}}
+async function applyLiveSource(){setEditorMessage("Applying…");try{const response=await fetch(apiUrl("/api/live"),{method:"POST",headers:{"Content-Type":"text/plain; charset=utf-8"},body:editor.value}),result=await response.json();if(!response.ok||!result.ok)throw new Error(result.error||"Apply failed");editorDirty=false;setEditorMessage("Applied · OSC grids + street agents updated","ok");applyState(await fetchJSON("/api/state"));}catch(err){setEditorMessage(`Not applied: ${lastErrorLines(err.message||err)}`,"error");}}
+async function loadLocations(){const data=await fetchJSON("/api/locations");locationSelect.innerHTML="";for(const loc of data.locations||[]){const option=document.createElement("option");option.value=loc.id;option.textContent=loc.name;locationSelect.appendChild(option);}locationSelect.value=data.active||"trento";}
+async function transportAction(action){try{const response=await fetch(apiUrl("/api/transport"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action})}),result=await response.json();if(!response.ok||!result.ok)throw new Error(result.error||"Transport failed");transport=result;}catch(err){setEditorMessage(`OSC transport: ${err.message}`,"error");}}
+editor.addEventListener("input",()=>{updateHighlight();editorDirty=true;setEditorMessage("Modified · Apply to run");});
+editor.addEventListener("scroll",()=>{highlightLayer.scrollTop=editor.scrollTop;highlightLayer.scrollLeft=editor.scrollLeft;});
+editor.addEventListener("keydown",event=>{if(event.key==="Tab"){event.preventDefault();editor.setRangeText("    ",editor.selectionStart,editor.selectionEnd,"end");updateHighlight();editorDirty=true;}if(event.key==="Enter"&&(event.metaKey||event.ctrlKey)){event.preventDefault();applyLiveSource();}});
+document.getElementById("applyButton").onclick=applyLiveSource;
+document.getElementById("reloadButton").onclick=()=>{if(!editorDirty||confirm("Discard browser edits and reload live.py from disk?"))loadLiveSource();};
+document.getElementById("codeControlBtn").onclick=()=>setControlMode("code");
+document.getElementById("mapControlBtn").onclick=()=>setControlMode("map");
+playButton.onclick=()=>transportAction("play");stopButton.onclick=()=>transportAction("stop");
+uiToggle.onclick=()=>{const hidden=document.body.classList.toggle("ui-hidden");uiToggle.textContent=hidden?"Show UI":"Hide UI";uiToggle.title=hidden?"Restore interface overlays":"Hide interface overlays";};
+locationSelect.onchange=async()=>{mapData=null;streetPathBase=null;stateSignature="";indicatorSignature="";resetView();try{const response=await fetch(apiUrl("/api/location"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({location:locationSelect.value})});if(!response.ok)throw new Error(`${response.status} ${response.statusText}`);pollMap();}catch(err){statusEl.textContent=`Location change failed: ${err.message}`;}};
+canvas.onmousedown=event=>{if(controlMode!=="map")return;drag={x:event.clientX,y:event.clientY,panX:view.panX,panY:view.panY};canvas.classList.add("dragging");};
+window.onmousemove=event=>{if(!drag)return;view.panX=drag.panX+(event.clientX-drag.x);view.panY=drag.panY+(event.clientY-drag.y);draw();};
+window.onmouseup=()=>{drag=null;canvas.classList.remove("dragging");};
+canvas.ondblclick=()=>{if(controlMode==="map")resetView();};
+canvas.onwheel=event=>{if(controlMode!=="map")return;event.preventDefault();const r=canvas.getBoundingClientRect(),mx=event.clientX-r.left,my=event.clientY-r.top,cx=r.width/2,cy=r.height/2,old=view.scale,f=event.deltaY<0?1.12:1/1.12;view.scale=Math.max(view.minScale,Math.min(view.maxScale,view.scale*f));const ratio=view.scale/old;view.panX=mx-cx-(mx-cx-view.panX)*ratio;view.panY=my-cy-(my-cy-view.panY)*ratio;draw();};
+window.addEventListener("resize",resize);
+setControlMode("code");resize();loadLiveSource();loadLocations().catch(err=>statusEl.textContent=`Cannot reach XYPI at ${SERVER_HINT}: ${err.message}`);pollMap();pollState();pollTransport();
+</script>
+</body>
+</html>
