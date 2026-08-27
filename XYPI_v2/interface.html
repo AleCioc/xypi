@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>XYPI Map Agents v13</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; }
+  body { margin: 0; overflow: hidden; background: #f4f1ea; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+
+  /* The map is the fixed visual surface. It never scrolls with the code. */
+  #stage { position: fixed; inset: 0; overflow: hidden; }
+  #map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #faf9f5; }
+  #mapShade { position: absolute; inset: 0; pointer-events: none; background: rgba(8,10,13,0.18); z-index: 2; }
+
+  /* The code IS the foreground surface: no panel, no border, no draggable widget. */
+  #codeSurface { position: absolute; inset: 0; z-index: 10; overflow: hidden; }
+  #highlightLayer, #liveEditor {
+    position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border: 0;
+    padding: 64px 76px 110px 64px; font: 16px/1.58 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    tab-size: 4; white-space: pre; overflow: auto; scrollbar-gutter: stable;
+  }
+  #highlightLayer { pointer-events: none; color: #eef2f5; background: transparent; scrollbar-width: none; text-shadow: 0 1px 3px rgba(0,0,0,.80), 0 0 10px rgba(0,0,0,.42); }
+  #highlightLayer::-webkit-scrollbar { display: none; }
+  #highlightCode { font: inherit; }
+  #liveEditor { resize: none; outline: 0; background: transparent; color: transparent; caret-color: #fff; -webkit-text-fill-color: transparent; }
+  #liveEditor::selection { background: rgba(130,170,255,.30); color: transparent; }
+  #liveEditor::-webkit-scrollbar { width: 9px; height: 9px; }
+  #liveEditor::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 8px; }
+  #liveEditor::-webkit-scrollbar-track { background: transparent; }
+
+  .tok-keyword { color: #db9cff; }
+  .tok-string { color: #c7f08a; }
+  .tok-comment { color: #aab7c2; font-style: italic; }
+  .tok-number { color: #ff9c75; }
+  .tok-constant { color: #ffd86d; }
+  .tok-xypi { color: #79b8ff; font-weight: 700; }
+  .tok-fn { color: #83e7f4; }
+  .tok-op { color: #92e5ff; }
+
+  /* Minimal performance HUD; it is not part of the editor geometry. */
+  #topHud { position: absolute; z-index: 30; top: 14px; right: 18px; display: flex; align-items: center; gap: 7px; pointer-events: auto; }
+  #status { max-width: 440px; padding: 5px 8px; border-radius: 5px; background: rgba(8,10,13,.48); color: rgba(255,255,255,.76); font: 10.5px/1.3 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; backdrop-filter: blur(3px); }
+  button { border: 1px solid rgba(255,255,255,.16); border-radius: 5px; padding: 5px 8px; color: rgba(255,255,255,.88); background: rgba(8,10,13,.48); cursor: pointer; font: 10.5px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; backdrop-filter: blur(3px); }
+  button:hover { background: rgba(8,10,13,.68); }
+  #applyButton { background: rgba(48,112,69,.66); }
+
+  #legend { position: absolute; z-index: 25; left: 16px; bottom: 14px; max-width: calc(100vw - 32px); display: flex; gap: 10px; flex-wrap: wrap; padding: 6px 9px; border-radius: 5px; background: rgba(8,10,13,.42); color: rgba(255,255,255,.76); font: 10px/1.3 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; pointer-events: none; backdrop-filter: blur(3px); }
+  .item { display: inline-flex; align-items: center; gap: 5px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+
+  #editorMessage { position: absolute; z-index: 28; left: 64px; top: 34px; color: rgba(255,255,255,.62); font: 10.5px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; pointer-events: none; }
+  #editorMessage.error { color: #ffaea6; }
+  #editorMessage.ok { color: #a7efb5; }
+
+  @media (max-width: 760px) {
+    #highlightLayer, #liveEditor { padding: 58px 20px 92px 20px; font-size: 13px; }
+    #editorMessage { left: 20px; }
+    #status { display: none; }
+    #legend { max-height: 42px; overflow: hidden; }
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="map"></canvas>
+  <div id="mapShade"></div>
+
+  <div id="codeSurface">
+    <pre id="highlightLayer" aria-hidden="true"><code id="highlightCode"></code></pre>
+    <textarea id="liveEditor" spellcheck="false" aria-label="XYPI live.py editor"></textarea>
+  </div>
+
+  <div id="editorMessage">Loading live.py…</div>
+  <div id="topHud">
+    <div id="status">loading street map…</div>
+    <button id="reloadButton" title="Reload live.py from disk">Reload</button>
+    <button id="applyButton" title="Apply live.py (Cmd/Ctrl+Enter)">Apply</button>
+  </div>
+  <div id="legend">No live-coded agents.</div>
+</div>
+
+<script>
+const canvas = document.getElementById("map");
+const ctx = canvas.getContext("2d");
+const statusEl = document.getElementById("status");
+const legendEl = document.getElementById("legend");
+const editor = document.getElementById("liveEditor");
+const highlightLayer = document.getElementById("highlightLayer");
+const highlightCode = document.getElementById("highlightCode");
+const editorMessage = document.getElementById("editorMessage");
+const applyButton = document.getElementById("applyButton");
+const reloadButton = document.getElementById("reloadButton");
+const API_BASE = window.location.protocol === "file:" ? "http://127.0.0.1:8001" : "";
+
+let mapData = null;
+let mapFetchInFlight = false;
+let state = null;
+let cornerEffects = [];
+let lastEventTimes = new Map();
+let effectsFrame = null;
+let editorDirty = false;
+
+const PY_KEYWORDS = new Set(["and","as","assert","async","await","break","class","continue","def","del","elif","else","except","finally","for","from","global","if","import","in","is","lambda","nonlocal","not","or","pass","raise","return","try","while","with","yield","match","case"]);
+const PY_CONSTANTS = new Set(["True","False","None"]);
+const XYPI_WORDS = new Set(["agent","random_walk","straightish","backtrack","clockwiseish","anticlockwiseish","shortest_street","longest_street","point_attract","choices"]);
+
+function escapeHtml(text) { return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function spanToken(cls, text) { return `<span class="${cls}">${escapeHtml(text)}</span>`; }
+
+function highlightPython(source) {
+  let out = "", i = 0;
+  while (i < source.length) {
+    const ch = source[i];
+    if (ch === "#") {
+      let j = i; while (j < source.length && source[j] !== "\n") j++;
+      out += spanToken("tok-comment", source.slice(i, j)); i = j; continue;
+    }
+    if (ch === "'" || ch === '"') {
+      const quote = ch, triple = source.slice(i, i + 3) === quote.repeat(3), step = triple ? 3 : 1;
+      let j = i + step;
+      while (j < source.length) {
+        if (source[j] === "\\") { j += 2; continue; }
+        if (triple && source.slice(j, j + 3) === quote.repeat(3)) { j += 3; break; }
+        if (!triple && source[j] === quote) { j++; break; }
+        j++;
+      }
+      out += spanToken("tok-string", source.slice(i, j)); i = j; continue;
+    }
+    if ((ch >= "0" && ch <= "9") || (ch === "." && i + 1 < source.length && /[0-9]/.test(source[i + 1]))) {
+      let j = i + 1; while (j < source.length && /[0-9A-Fa-fxXoObBeEjJ_\.\+\-]/.test(source[j])) j++;
+      out += spanToken("tok-number", source.slice(i, j)); i = j; continue;
+    }
+    if (/[A-Za-z_]/.test(ch)) {
+      let j = i + 1; while (j < source.length && /[A-Za-z0-9_]/.test(source[j])) j++;
+      const word = source.slice(i, j); let k = j; while (k < source.length && /[ \t]/.test(source[k])) k++;
+      if (PY_KEYWORDS.has(word)) out += spanToken("tok-keyword", word);
+      else if (PY_CONSTANTS.has(word)) out += spanToken("tok-constant", word);
+      else if (XYPI_WORDS.has(word) || /^l\d+$/.test(word)) out += spanToken("tok-xypi", word);
+      else if (source[k] === "(") out += spanToken("tok-fn", word);
+      else out += escapeHtml(word);
+      i = j; continue;
+    }
+    if ("=+-*/%<>!|&^~:@".includes(ch)) out += spanToken("tok-op", ch);
+    else out += escapeHtml(ch);
+    i++;
+  }
+  return out;
+}
+
+function syncHighlightScroll() {
+  highlightLayer.scrollTop = editor.scrollTop;
+  highlightLayer.scrollLeft = editor.scrollLeft;
+}
+function updateHighlight() {
+  highlightCode.innerHTML = highlightPython(editor.value) + "\n";
+  syncHighlightScroll();
+}
+
+function canvasSize() { return canvas.getBoundingClientRect(); }
+function resize() {
+  const dpr = window.devicePixelRatio || 1, r = canvasSize();
+  canvas.width = Math.max(1, Math.round(r.width * dpr));
+  canvas.height = Math.max(1, Math.round(r.height * dpr));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+function xy(p) {
+  const r = canvasSize(), pad = 22;
+  return [pad + p[0] * (r.width - 2 * pad), r.height - pad - p[1] * (r.height - 2 * pad)];
+}
+function alphaColour(colour, alpha) {
+  if (!colour.startsWith("hsl(")) return colour;
+  return colour.slice(0, -1) + ` / ${alpha})`;
+}
+function drawMessage(text) {
+  const r = canvasSize();
+  ctx.fillStyle = "#777"; ctx.font = "14px -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"; ctx.textAlign = "center";
+  ctx.fillText(text, r.width / 2, r.height / 2); ctx.textAlign = "left";
+}
+function drawStreets() {
+  if (!mapData || !mapData.ready) return;
+  ctx.strokeStyle = "rgba(50,54,58,.63)"; ctx.lineWidth = 1.15; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  for (const edge of mapData.streets.edges) {
+    if (!edge.geometry || edge.geometry.length < 2) continue;
+    ctx.beginPath(); let p = xy(edge.geometry[0]); ctx.moveTo(p[0], p[1]);
+    for (let i = 1; i < edge.geometry.length; i++) { p = xy(edge.geometry[i]); ctx.lineTo(p[0], p[1]); }
+    ctx.stroke();
+  }
+}
+function drawLayer(layer) {
+  if (!layer.coords.length) return;
+  const pts = layer.coords.map(xy); ctx.lineWidth = 3; ctx.strokeStyle = layer.colour; ctx.fillStyle = alphaColour(layer.colour, .16);
+  if (layer.shape === "points") {
+    ctx.fillStyle = layer.colour;
+    for (const p of pts) { ctx.beginPath(); ctx.arc(p[0], p[1], 5.5, 0, Math.PI * 2); ctx.fill(); }
+  } else if (layer.shape === "line") {
+    for (const path of (layer.street_paths || [])) {
+      if (path.length < 2) continue;
+      const routed = path.map(xy); ctx.beginPath(); routed.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke();
+    }
+    ctx.fillStyle = layer.colour;
+    for (const p of pts) { ctx.beginPath(); ctx.arc(p[0], p[1], 3.2, 0, Math.PI * 2); ctx.fill(); }
+  } else if (layer.shape === "area") {
+    ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+}
+function drawAgent(agent, layer) {
+  if (!layer) return;
+  const p = xy([agent.x, agent.y]); ctx.beginPath(); ctx.arc(p[0], p[1], 7, 0, Math.PI * 2); ctx.fillStyle = layer.colour; ctx.fill();
+  ctx.strokeStyle = "rgba(20,20,20,.82)"; ctx.lineWidth = 1.4; ctx.stroke();
+}
+function captureCornerEvents() {
+  if (!state) return;
+  const layers = Object.fromEntries(state.layers.map(layer => [layer.name, layer]));
+  for (const agent of state.agents) {
+    const ev = agent.last_event; if (!ev || !ev.time) continue;
+    const old = lastEventTimes.get(agent.name); lastEventTimes.set(agent.name, ev.time);
+    if (old === undefined || ev.time <= old) continue;
+    const layer = layers[agent.layer]; if (!layer) continue;
+    cornerEffects.push({x: ev.x_timbre, y: ev.y_pitch, colour: layer.colour, start: performance.now(), duration: 1600});
+  }
+  if (cornerEffects.length && effectsFrame === null) effectsFrame = requestAnimationFrame(animateEffects);
+}
+function drawCornerEffects(now) {
+  cornerEffects = cornerEffects.filter(effect => now - effect.start < effect.duration);
+  for (const effect of cornerEffects) {
+    const p = xy([effect.x, effect.y]), t = Math.max(0, Math.min(1, (now - effect.start) / effect.duration));
+    const fade = 1 - t, radius = 10 + 80 * (1 - Math.pow(1 - t, 2));
+    ctx.beginPath(); ctx.arc(p[0], p[1], radius, 0, Math.PI * 2); ctx.strokeStyle = alphaColour(effect.colour, .90 * fade); ctx.lineWidth = 4.5 * (1 - t) + 1; ctx.stroke();
+    ctx.beginPath(); ctx.arc(p[0], p[1], 8 + 18 * Math.sin(Math.PI * t), 0, Math.PI * 2); ctx.fillStyle = alphaColour(effect.colour, .40 * fade); ctx.fill();
+  }
+}
+function draw(now = performance.now()) {
+  const r = canvasSize(); ctx.clearRect(0, 0, r.width, r.height); ctx.fillStyle = "#faf9f5"; ctx.fillRect(0, 0, r.width, r.height);
+  if (!mapData || !mapData.ready) { drawMessage(state && state.status === "error" ? state.error : "Loading street map…"); return; }
+  drawStreets(); if (!state) return;
+  for (const layer of state.layers) drawLayer(layer);
+  const layers = Object.fromEntries(state.layers.map(layer => [layer.name, layer]));
+  for (const agent of state.agents) drawAgent(agent, layers[agent.layer]);
+  drawCornerEffects(now);
+}
+function animateEffects(now) {
+  draw(now);
+  if (cornerEffects.length) effectsFrame = requestAnimationFrame(animateEffects); else effectsFrame = null;
+}
+function updateLegend() {
+  if (!state || state.layers.length === 0) { legendEl.textContent = "No live-coded agents."; return; }
+  const agents = Object.fromEntries(state.agents.map(agent => [agent.layer, agent]));
+  legendEl.innerHTML = state.layers.map(layer => {
+    const a = agents[layer.name];
+    return `<span class="item"><span class="dot" style="background:${layer.colour}"></span>${layer.name} · ${layer.shape} · ${a ? a.speed_mps.toFixed(2) + " m/s" : ""} · ${a ? a.sound : ""}</span>`;
+  }).join("");
+}
+
+async function fetchJSON(path) {
+  const url = `${API_BASE}${path}?t=${Date.now()}`;
+  const response = await fetch(url, {cache: "no-store"});
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText} from ${url}`);
+  const type = response.headers.get("content-type") || "";
+  if (!type.includes("application/json")) throw new Error(`expected JSON from ${url}, got ${type || "unknown content type"}`);
+  return response.json();
+}
+
+/* Heavy map JSON is fetched only after state says the map is ready, then only once. */
+async function fetchMapOnce() {
+  if (mapData || mapFetchInFlight) return;
+  mapFetchInFlight = true;
+  try {
+    const data = await fetchJSON("/runtime/map.json");
+    if (!data.ready) throw new Error("map snapshot is not ready yet");
+    mapData = data; draw();
+  } catch (err) {
+    mapFetchInFlight = false;
+    statusEl.textContent = `map file error: ${err.message}`;
+    setTimeout(() => { if (!mapData && state && state.status === "map ready") fetchMapOnce(); }, 1200);
+    return;
+  }
+  mapFetchInFlight = false;
+}
+
+async function pollState() {
+  try {
+    state = await fetchJSON("/runtime/state.json");
+    if (state.status === "error") statusEl.textContent = state.error;
+    else if (state.status === "map ready") {
+      if (!mapData) fetchMapOnce();
+      statusEl.textContent = `${state.map.name} · ${state.map.street_segments} streets · ${state.layers.length} agent(s)`;
+    } else statusEl.textContent = state.status || "loading street map…";
+    captureCornerEvents(); updateLegend(); if (!cornerEffects.length) draw();
+    if (state.live && state.live.error && !editorDirty) setEditorMessage(state.live.error, "error");
+  } catch (err) { statusEl.textContent = `state file error: ${err.message}`; }
+  setTimeout(pollState, 160);
+}
+
+function setEditorMessage(text, kind = "") { editorMessage.textContent = text; editorMessage.className = kind; }
+async function loadLiveSource() {
+  try {
+    const response = await fetch(`${API_BASE}/api/live?t=${Date.now()}`, {cache: "no-store"});
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    editor.value = await response.text(); updateHighlight(); editorDirty = false; setEditorMessage("live.py · Cmd/Ctrl+Enter applies", "ok");
+  } catch (err) { setEditorMessage(`Could not load live.py: ${err.message}`, "error"); }
+}
+async function applyLiveSource() {
+  setEditorMessage("Validating and saving…");
+  try {
+    const response = await fetch(`${API_BASE}/api/live`, {method: "POST", headers: {"Content-Type": "text/plain; charset=utf-8"}, body: editor.value});
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || result.message || `${response.status} ${response.statusText}`);
+    editorDirty = false; setEditorMessage("Applied", "ok");
+  } catch (err) { setEditorMessage(`Not applied: ${err.message}`, "error"); }
+}
+
+editor.addEventListener("input", () => { updateHighlight(); editorDirty = true; setEditorMessage("Modified · Cmd/Ctrl+Enter to apply"); });
+editor.addEventListener("keydown", event => {
+  if (event.key === "Tab") {
+    event.preventDefault(); const start = editor.selectionStart, end = editor.selectionEnd;
+    editor.setRangeText("    ", start, end, "end"); updateHighlight(); editorDirty = true;
+  }
+  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); applyLiveSource(); }
+});
+editor.addEventListener("scroll", syncHighlightScroll);
+applyButton.addEventListener("click", applyLiveSource);
+reloadButton.addEventListener("click", () => { if (!editorDirty || confirm("Discard unsaved browser edits and reload live.py from disk?")) loadLiveSource(); });
+window.addEventListener("resize", resize);
+
+resize();
+pollState();
+loadLiveSource();
+</script>
+</body>
+</html>
