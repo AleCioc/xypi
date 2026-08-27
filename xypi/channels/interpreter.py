@@ -248,6 +248,13 @@ def _interpret_points_0(config: ChannelConfig, geometry: BaseGeometry) -> Channe
         time_cells=time_cells,
         pitch_cells=pitch_cells,
     )
+    minx, miny, maxx, maxy = bounds
+    layout["grid_bounds"] = {
+        "minx": minx,
+        "miny": miny,
+        "maxx": maxx,
+        "maxy": maxy,
+    }
 
     return Channel(
         config=config,

@@ -290,17 +290,57 @@ python xypi/experiments/experiment_5/export_demos.py
 
 See [moving_points](#moving_points--graph-based-time) above for the full API. Experiment 5 is the quickest way to try multi-mover graphs interactively.
 
+## Unified UI (XYPI_v2 + spatial channels)
+
+The **`xypi/ui`** module merges the map-agent live editor (XYPI_v2) with spatial channel REPL functionality.
+
+```bash
+python xypi/run.py
+# → http://127.0.0.1:8080/
+python xypi/run.py --location taranto
+python xypi/run.py --list-locations
+```
+
+### Locations (one active at a time)
+
+| ID | City |
+|----|------|
+| `trento` | Trento, Italy (default) |
+| `taranto` | Taranto, Italy |
+| `antwerp` | Antwerp, Belgium |
+
+On startup the server loads **OpenStreetMap** data: road network, schools (`amenity=school`), and hospitals (`amenity=hospital`). POIs appear as dots on the map; use `schools()`, `hospitals()`, and `schools_pattern()` in the Channels panel.
+
+### `moving_agent` — unified keyword
+
+| Mode | Usage |
+|------|--------|
+| **Street** (map agents) | `moving_agent("points", [(0.5, 0.5)], speed=14, sound="harmonic")` in `live.py` as `l1`, `l2`, … |
+| **Grid** (spatial channels) | `moving_agent("alpha", path=[0, 1], movement="sync")` inside `MovingPointsConfig` |
+
+### Output modes
+
+| Type | Audio |
+|------|-------|
+| Street agents (`live.py`) | OSC → SuperCollider — `xypi/ui/receivers/supercollider_receiver.scd` |
+| Spatial channels (`play()`) | WebAudio in browser, or Sonic Pi — `xypi/ui/receivers/sonicpi_receiver.spi` |
+
+Experiments 0–5 continue to work independently on their original ports.
+
 ## Project layout
 
 ```
 xypi/
   channels/            # axis roles, channel config, interpreter
-  spatial/             # patterns, moving_points, GeoJSON export
+  map/                 # OSM locations, street graph, POIs
+  agents/              # street moving_agent engine
+  ui/                  # unified web server + interface
+  spatial/             # patterns, moving_points, moving_agent
   playback/            # scheduling and OSC sender
+  run.py               # unified entry point
   experiments/
-    shared/
-      viewer/          # shared web mixer (player.js, style.css)
-      repl/            # shared REPL terminal UI
+    shared/viewer/     # shared web mixer (player.js, style.css)
+    shared/repl/       # legacy REPL UI (experiments 4/5)
     experiment_0/      # GeoJSON export
     experiment_2/      # web mixer viewer
     experiment_4/      # REPL + live map

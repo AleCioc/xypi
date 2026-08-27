@@ -18,6 +18,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest"]
 
+[project.scripts]
+xypi = "xypi.run:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["xypi*"]

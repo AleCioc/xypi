@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>XYPI — Map + Spatial Channels</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; }
+  body { margin: 0; overflow: hidden; background: #f4f1ea; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  #stage { position: fixed; inset: 0; overflow: hidden; }
+  #map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #faf9f5; }
+  #mapShade { position: absolute; inset: 0; pointer-events: none; background: rgba(8,10,13,0.18); z-index: 2; }
+  #codeSurface { position: absolute; inset: 0; z-index: 10; overflow: hidden; }
+  #highlightLayer, #liveEditor {
+    position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border: 0;
+    padding: 64px 76px 120px 64px; font: 16px/1.58 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    tab-size: 4; white-space: pre; overflow: auto; scrollbar-gutter: stable;
+  }
+  #highlightLayer { pointer-events: none; color: #eef2f5; background: transparent; scrollbar-width: none; text-shadow: 0 1px 3px rgba(0,0,0,.80), 0 0 10px rgba(0,0,0,.42); }
+  #highlightLayer::-webkit-scrollbar { display: none; }
+  #liveEditor { resize: none; outline: 0; background: transparent; color: transparent; caret-color: #fff; -webkit-text-fill-color: transparent; }
+  #liveEditor::selection { background: rgba(130,170,255,.30); color: transparent; }
+  .tok-keyword { color: #db9cff; } .tok-string { color: #c7f08a; } .tok-comment { color: #aab7c2; font-style: italic; }
+  .tok-number { color: #ff9c75; } .tok-constant { color: #ffd86d; } .tok-xypi { color: #79b8ff; font-weight: 700; }
+  .tok-fn { color: #83e7f4; } .tok-op { color: #92e5ff; }
+  #topHud { position: absolute; z-index: 30; top: 14px; right: 18px; display: flex; align-items: center; gap: 7px; pointer-events: auto; flex-wrap: wrap; justify-content: flex-end; }
+  #status { max-width: 360px; padding: 5px 8px; border-radius: 5px; background: rgba(8,10,13,.48); color: rgba(255,255,255,.76); font: 10.5px/1.3 ui-monospace, monospace; backdrop-filter: blur(3px); }
+  button, select { border: 1px solid rgba(255,255,255,.16); border-radius: 5px; padding: 5px 8px; color: rgba(255,255,255,.88); background: rgba(8,10,13,.48); cursor: pointer; font: 10.5px/1 ui-monospace, monospace; backdrop-filter: blur(3px); }
+  button:hover { background: rgba(8,10,13,.68); }
+  #applyButton { background: rgba(48,112,69,.66); }
+  #play-btn.playing { background: rgba(48,112,69,.66); }
+  #controlToggle { display: inline-flex; border-radius: 5px; overflow: hidden; border: 1px solid rgba(255,255,255,.16); }
+  #controlToggle button { border: 0; border-radius: 0; margin: 0; }
+  #controlToggle button.active { background: rgba(48,112,69,.75); }
+  #legend { position: absolute; z-index: 25; left: 16px; bottom: 52px; max-width: calc(100vw - 32px); display: flex; gap: 10px; flex-wrap: wrap; padding: 6px 9px; border-radius: 5px; background: rgba(8,10,13,.42); color: rgba(255,255,255,.76); font: 10px/1.3 ui-monospace, monospace; pointer-events: none; backdrop-filter: blur(3px); }
+  #stepBarWrap { position: absolute; z-index: 24; left: 16px; right: 16px; bottom: 14px; display: none; gap: 3px; padding: 6px 8px; border-radius: 5px; background: rgba(8,10,13,.55); backdrop-filter: blur(4px); }
+  #stepBarWrap.visible { display: flex; }
+  .step-cell { flex: 1; height: 10px; border-radius: 2px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.06); }
+  .step-cell.hit { background: rgba(74,222,128,.35); }
+  .step-cell.active { border-color: rgba(249,115,22,.9); box-shadow: 0 0 0 1px rgba(249,115,22,.5); }
+  #editorMessage { position: absolute; z-index: 28; left: 64px; top: 34px; color: rgba(255,255,255,.62); font: 10.5px/1.2 ui-monospace, monospace; pointer-events: none; max-width: 50vw; }
+  #editorMessage.error { color: #ffaea6; } #editorMessage.ok { color: #a7efb5; }
+  #mapHint { position: absolute; z-index: 26; left: 16px; top: 14px; padding: 5px 8px; border-radius: 5px; background: rgba(8,10,13,.48); color: rgba(255,255,255,.62); font: 10px/1.3 ui-monospace, monospace; pointer-events: none; display: none; }
+  body.map-control #mapHint { display: block; }
+  body.code-control #mapHint { display: none; }
+  body.code-control #map { pointer-events: none; }
+  body.map-control #codeSurface { pointer-events: none; opacity: 0; }
+  body.map-control #editorMessage { opacity: 0; }
+  body.map-control #mapShade { background: rgba(8,10,13,0.05); }
+  body.map-control #map { cursor: grab; touch-action: none; }
+  body.map-control #map.dragging { cursor: grabbing; }
+  #mixer { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+  .item { display: inline-flex; align-items: center; gap: 5px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+</style>
+</head>
+<body class="code-control">
+<div id="stage">
+  <canvas id="map"></canvas>
+  <div id="mapShade"></div>
+  <div id="mapHint">Map control · drag pan · scroll zoom · double-click reset</div>
+  <div id="codeSurface">
+    <pre id="highlightLayer" aria-hidden="true"><code id="highlightCode"></code></pre>
+    <textarea id="liveEditor" spellcheck="false" aria-label="XYPI live editor"></textarea>
+  </div>
+  <div id="editorMessage">Loading…</div>
+  <div id="topHud">
+    <div id="controlToggle">
+      <button id="codeControlBtn" type="button" class="active">Code</button>
+      <button id="mapControlBtn" type="button">Map</button>
+    </div>
+    <select id="locationSelect">
+      <option value="trento">Trento</option>
+      <option value="taranto">Taranto</option>
+      <option value="antwerp">Antwerp</option>
+    </select>
+    <div id="status">loading map…</div>
+    <button id="play-btn" type="button">▶ Play</button>
+    <button id="stop-btn" type="button">■ Stop</button>
+    <button id="mute-all-btn" type="button">Mute</button>
+    <button id="reloadButton" type="button">Reload</button>
+    <button id="applyButton" type="button">Apply</button>
+  </div>
+  <div id="stepBarWrap"><div id="stepBar" style="display:contents"></div></div>
+  <div id="legend">No agents or channels yet.</div>
+  <div id="mixer"></div>
+</div>
+<script src="/shared/viewer/player.js?v=3"></script>
+<script>
+const canvas = document.getElementById("map");
+const ctx = canvas.getContext("2d");
+const statusEl = document.getElementById("status");
+const legendEl = document.getElementById("legend");
+const editor = document.getElementById("liveEditor");
+const highlightCode = document.getElementById("highlightCode");
+const highlightLayer = document.getElementById("highlightLayer");
+const editorMessage = document.getElementById("editorMessage");
+const stepBarWrap = document.getElementById("stepBarWrap");
+const stepBar = document.getElementById("stepBar");
+const API_BASE = "";
+
+let mapData = null, mapFetchInFlight = false, state = null;
+let cornerEffects = [], lastEventTimes = new Map(), effectsFrame = null;
+let editorDirty = false, controlMode = "code", activeSeqStep = -1;
+let spatialChannels = [], autoApplyAttempted = false, editorReady = false;
+const MAP_PAD = 22;
+const view = { panX: 0, panY: 0, scale: 1, minScale: 0.35, maxScale: 8 };
+let drag = null;
+
+const PY_KEYWORDS = new Set(["and","as","assert","async","await","break","class","continue","def","del","elif","else","except","finally","for","from","global","if","import","in","is","lambda","nonlocal","not","or","pass","raise","return","try","while","with","yield","match","case"]);
+const PY_CONSTANTS = new Set(["True","False","None"]);
+const XYPI_WORDS = new Set(["moving_agent","agent","play","schools","hospitals","pois_to_points","schools_pattern","hospitals_pattern","point_graph","MovingPointsConfig","moving_agent","random_walk","straightish","backtrack","point_attract","MoverConfig","MovingPointsConfig","time_flow","x_axis","y_axis","pitch_cells","release_cells","octave_cells","root_midi","n_steps"]);
+
+function escapeHtml(t) { return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function spanToken(cls, t) { return `<span class="${cls}">${escapeHtml(t)}</span>`; }
+function highlightPython(source) {
+  let out = "", i = 0;
+  while (i < source.length) {
+    const ch = source[i];
+    if (ch === "#") { let j = i; while (j < source.length && source[j] !== "\n") j++; out += spanToken("tok-comment", source.slice(i, j)); i = j; continue; }
+    if (ch === "'" || ch === '"') {
+      const q = ch, tr = source.slice(i,i+3)===q.repeat(3), st = tr?3:1; let j = i+st;
+      while (j < source.length) {
+        if (source[j]==="\\") { j+=2; continue; }
+        if (tr && source.slice(j,j+3)===q.repeat(3)) { j+=3; break; }
+        if (!tr && source[j]===q) { j++; break; }
+        j++;
+      }
+      out += spanToken("tok-string", source.slice(i,j)); i = j; continue;
+    }
+    if ((ch>="0"&&ch<="9")||(ch==="."&&/[0-9]/.test(source[i+1]||""))) {
+      let j=i+1; while (j<source.length && /[0-9A-Fa-fxXoObBeEjJ_\.\+\-]/.test(source[j])) j++;
+      out += spanToken("tok-number", source.slice(i,j)); i=j; continue;
+    }
+    if (/[A-Za-z_]/.test(ch)) {
+      let j=i+1; while (j<source.length && /[A-Za-z0-9_]/.test(source[j])) j++;
+      const w = source.slice(i,j); let k=j; while (k<source.length && /[ \t]/.test(source[k])) k++;
+      if (PY_KEYWORDS.has(w)) out += spanToken("tok-keyword", w);
+      else if (PY_CONSTANTS.has(w)) out += spanToken("tok-constant", w);
+      else if (XYPI_WORDS.has(w) || /^l\d+$/.test(w)) out += spanToken("tok-xypi", w);
+      else if (source[k]==="(") out += spanToken("tok-fn", w);
+      else out += escapeHtml(w);
+      i=j; continue;
+    }
+    if ("=+-*/%<>!|&^~:@".includes(ch)) out += spanToken("tok-op", ch); else out += escapeHtml(ch);
+    i++;
+  }
+  return out;
+}
+function syncHighlightScroll() { highlightLayer.scrollTop = editor.scrollTop; highlightLayer.scrollLeft = editor.scrollLeft; }
+function updateHighlight() { highlightCode.innerHTML = highlightPython(editor.value)+"\n"; syncHighlightScroll(); }
+
+function canvasSize() { return canvas.getBoundingClientRect(); }
+function resize() {
+  const dpr = devicePixelRatio||1, r = canvasSize();
+  canvas.width = Math.max(1, Math.round(r.width*dpr));
+  canvas.height = Math.max(1, Math.round(r.height*dpr));
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  draw();
+}
+function normToCanvas(nx, ny) {
+  const r = canvasSize();
+  return [MAP_PAD+nx*(r.width-2*MAP_PAD), r.height-MAP_PAD-ny*(r.height-2*MAP_PAD)];
+}
+function xy(p) {
+  const r = canvasSize(), [bx,by] = normToCanvas(p[0], p[1]);
+  const cx=r.width/2, cy=r.height/2;
+  return [cx+(bx-cx)*view.scale+view.panX, cy+(by-cy)*view.scale+view.panY];
+}
+function resetView() { view.panX=0; view.panY=0; view.scale=1; draw(); }
+function setControlMode(mode) {
+  controlMode=mode;
+  document.body.classList.toggle("code-control", mode==="code");
+  document.body.classList.toggle("map-control", mode==="map");
+  document.getElementById("codeControlBtn").classList.toggle("active", mode==="code");
+  document.getElementById("mapControlBtn").classList.toggle("active", mode==="map");
+}
+function alphaColour(c,a) { return c.startsWith("hsl(")? c.slice(0,-1)+` / ${a})`: c; }
+
+function inferFlow(ch) {
+  if (ch.gridLayout?.time_flow) return ch.gridLayout.time_flow;
+  if (ch.config?.time?.flow) return ch.config.time.flow;
+  return "x";
+}
+function gridDims(ch) {
+  const flow = inferFlow(ch);
+  const t = ch.grid?.time || 8, p = ch.grid?.pitch || 8;
+  if (flow === "moving_points") {
+    const rel = ch.gridLayout?.release_cells || ch.config?.space?.release_cells || 6;
+    return { flow, cols: p, rows: rel, timeCells: t };
+  }
+  if (flow === "y") return { flow, cols: p, rows: t, timeCells: t };
+  return { flow, cols: t, rows: p, timeCells: t };
+}
+function parseChannelPayload(data, label) {
+  const props = data.properties?.xypi || {};
+  return {
+    label: label || props.channel?.name || "channel",
+    config: props.channel || {},
+    events: props.events || [],
+    sourcePoints: props.source_points || [],
+    grid: props.grid || { time: 8, pitch: 8 },
+    gridLayout: props.grid_layout || {},
+    bpm: props.bpm || 150,
+  };
+}
+function loadSpatialChannels(payloads) {
+  spatialChannels = (payloads||[]).map((d,i) => parseChannelPayload(d, d.properties?.xypi?.channel?.name || `ch${i+1}`));
+  updateStepBar();
+  updateLegend();
+}
+function stepActs(e) {
+  if (!e) return [];
+  return e.activations?.length ? e.activations : [e];
+}
+
+function cellIndex(coord, min, max, n) {
+  const span = Math.max(max - min, 1e-9);
+  const t = (coord - min) / span;
+  return Math.max(0, Math.min(n - 1, Math.floor(t * n)));
+}
+
+function geometryBounds(ch) {
+  const pts = ch.sourcePoints || [];
+  if (!pts.length) return { minX: 0, minY: 0, maxX: 1, maxY: 1, width: 1, height: 1 };
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of pts) {
+    minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+  }
+  const width = maxX - minX || 1e-9, height = maxY - minY || 1e-9;
+  return { minX, minY, maxX, maxY, width, height };
+}
+
+function effectiveGridBounds(ch, dims) {
+  const gb = ch.gridLayout?.grid_bounds;
+  if (gb) {
+    return {
+      minX: gb.minx, minY: gb.miny, maxX: gb.maxx, maxY: gb.maxy,
+      width: (gb.maxx - gb.minx) || 1,
+      height: (gb.maxy - gb.miny) || 1,
+    };
+  }
+  if (dims.flow === "moving_points") {
+    const b = geometryBounds(ch);
+    const padX = b.width / (2 * Math.max(dims.cols, 1));
+    const padY = b.height / (2 * Math.max(dims.rows, 1));
+    return {
+      minX: b.minX - padX, minY: b.minY - padY,
+      maxX: b.maxX + padX, maxY: b.maxY + padY,
+      width: b.width + 2 * padX, height: b.height + 2 * padY,
+    };
+  }
+  return geometryBounds(ch);
+}
+
+function cellWorldRect(col, row, colCount, rowCount, gridB) {
+  return {
+    x0: gridB.minX + (col / colCount) * gridB.width,
+    x1: gridB.minX + ((col + 1) / colCount) * gridB.width,
+    y0: gridB.minY + (row / rowCount) * gridB.height,
+    y1: gridB.minY + ((row + 1) / rowCount) * gridB.height,
+  };
+}
+
+function drawCellWorld(rect, fill) {
+  const [cx0, cy0] = xy([rect.x0, rect.y1]);
+  const [cx1, cy1] = xy([rect.x1, rect.y0]);
+  ctx.fillStyle = fill;
+  ctx.fillRect(Math.min(cx0, cx1), Math.min(cy0, cy1), Math.abs(cx1 - cx0), Math.abs(cy1 - cy0));
+}
+
+function pointOccupancy(ch, dims, gridB) {
+  const flow = dims.flow;
+  const cells = new Map();
+  for (const pt of ch.sourcePoints || []) {
+    let col, row;
+    if (flow === "y") {
+      col = cellIndex(pt.x, gridB.minX, gridB.maxX, dims.cols);
+      row = cellIndex(pt.y, gridB.minY, gridB.maxY, dims.timeCells);
+    } else if (flow === "x") {
+      col = cellIndex(pt.x, gridB.minX, gridB.maxX, dims.timeCells);
+      row = cellIndex(pt.y, gridB.minY, gridB.maxY, dims.rows);
+    } else continue;
+    cells.set(`${col},${row}`, { col, row, x: pt.x, y: pt.y });
+  }
+  return cells;
+}
+
+function drawSpatialGrid(ch, step) {
+  const dims = gridDims(ch);
+  const flow = dims.flow;
+  const gridB = effectiveGridBounds(ch, dims);
+  ctx.lineWidth = 1;
+
+  for (let i = 1; i < dims.cols; i++) {
+    const x = gridB.minX + (gridB.width * i) / dims.cols;
+    const [ax, ay] = xy([x, gridB.minY]), [bx, by] = xy([x, gridB.maxY]);
+    ctx.strokeStyle = "rgba(108,158,255,0.22)";
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+  }
+  for (let j = 1; j < dims.rows; j++) {
+    const y = gridB.minY + (gridB.height * j) / dims.rows;
+    const [ax, ay] = xy([gridB.minX, y]), [bx, by] = xy([gridB.maxX, y]);
+    ctx.strokeStyle = "rgba(108,158,255,0.22)";
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+  }
+
+  const [ox0, oy0] = xy([gridB.minX, gridB.maxY]), [ox1, oy1] = xy([gridB.maxX, gridB.minY]);
+  ctx.strokeStyle = "rgba(108,158,255,0.35)";
+  ctx.strokeRect(Math.min(ox0, ox1), Math.min(oy0, oy1), Math.abs(ox1 - ox0), Math.abs(oy1 - oy0));
+
+  const occupied = pointOccupancy(ch, dims, gridB);
+  occupied.forEach(({ col, row }) => {
+    drawCellWorld(cellWorldRect(col, row, dims.cols, dims.rows, gridB), "rgba(108,158,255,0.10)");
+  });
+
+  if (step >= 0 && flow !== "moving_points" && flow !== "radial") {
+    if (flow === "x") {
+      const band = cellWorldRect(step, 0, dims.timeCells, 1, gridB);
+      band.y0 = gridB.minY; band.y1 = gridB.maxY;
+      drawCellWorld(band, "rgba(249,115,22,0.14)");
+    } else if (flow === "y") {
+      const band = cellWorldRect(0, step, 1, dims.timeCells, gridB);
+      band.x0 = gridB.minX; band.x1 = gridB.maxX;
+      drawCellWorld(band, "rgba(249,115,22,0.14)");
+    }
+  }
+
+  const ev = step >= 0 ? ch.events[step] : null;
+  if (ev) {
+    stepActs(ev).forEach((a) => {
+      if (a.grid_col < 0 || a.grid_row < 0) return;
+      const hit = a.hit ?? ev.hit;
+      if (!hit) return;
+      drawCellWorld(
+        cellWorldRect(a.grid_col, a.grid_row, dims.cols, dims.rows, gridB),
+        "rgba(74,222,128,0.32)",
+      );
+    });
+  }
+
+  if (flow === "moving_points" && step >= 0 && ch.events[step]) {
+    stepActs(ch.events[step]).forEach((a) => {
+      if (a.grid_col < 0) return;
+      drawCellWorld(
+        cellWorldRect(a.grid_col, a.grid_row, dims.cols, dims.rows, gridB),
+        (a.hit ?? ch.events[step].hit) ? "rgba(74,222,128,0.32)" : "rgba(249,115,22,0.18)",
+      );
+    });
+  }
+}
+
+function drawSourcePoints(points, colour) {
+  ctx.fillStyle = colour || "rgba(108,158,255,0.9)";
+  ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.2;
+  for (const pt of points) {
+    const [x,y]=xy([pt.x, pt.y]);
+    ctx.beginPath(); ctx.arc(x,y,8,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  }
+}
+
+function drawPois() {
+  if (spatialChannels.some(ch => ch.sourcePoints?.length)) return;
+  if (!mapData?.pois) return;
+  for (const poi of (mapData.pois.schools||[])) {
+    const [x,y]=xy([poi.x,poi.y]);
+    ctx.beginPath(); ctx.arc(x,y,5,0,Math.PI*2);
+    ctx.fillStyle="rgba(250,204,21,0.9)"; ctx.fill();
+    ctx.strokeStyle="rgba(0,0,0,0.35)"; ctx.lineWidth=1; ctx.stroke();
+  }
+  for (const poi of (mapData.pois.hospitals||[])) {
+    const [x,y]=xy([poi.x,poi.y]);
+    ctx.beginPath(); ctx.arc(x,y,5.5,0,Math.PI*2);
+    ctx.fillStyle="rgba(248,113,113,0.92)"; ctx.fill();
+    ctx.strokeStyle="rgba(0,0,0,0.35)"; ctx.lineWidth=1; ctx.stroke();
+  }
+}
+
+function drawStreets() {
+  if (!mapData?.ready) return;
+  ctx.strokeStyle="rgba(50,54,58,.63)"; ctx.lineWidth=1.15; ctx.lineCap="round";
+  for (const edge of mapData.streets.edges||[]) {
+    if (!edge.geometry||edge.geometry.length<2) continue;
+    ctx.beginPath();
+    let p=xy(edge.geometry[0]); ctx.moveTo(p[0],p[1]);
+    for (let i=1;i<edge.geometry.length;i++) { p=xy(edge.geometry[i]); ctx.lineTo(p[0],p[1]); }
+    ctx.stroke();
+  }
+}
+function drawLayer(layer) {
+  if (!layer.coords?.length) return;
+  const pts=layer.coords.map(xy);
+  ctx.lineWidth=3; ctx.strokeStyle=layer.colour;
+  if (layer.shape==="points") {
+    ctx.fillStyle=layer.colour;
+    for (const p of pts) { ctx.beginPath(); ctx.arc(p[0],p[1],5.5,0,Math.PI*2); ctx.fill(); }
+  } else if (layer.shape==="line") {
+    for (const path of (layer.street_paths||[])) {
+      if (path.length<2) continue;
+      const r=path.map(xy); ctx.beginPath(); r.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.stroke();
+    }
+  } else if (layer.shape==="area") {
+    ctx.fillStyle=alphaColour(layer.colour,0.16);
+    ctx.beginPath(); pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+}
+function drawAgent(agent, layer) {
+  if (!layer) return;
+  const [x,y]=xy([agent.x,agent.y]);
+  ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2); ctx.fillStyle=layer.colour; ctx.fill();
+  ctx.strokeStyle="rgba(20,20,20,.82)"; ctx.lineWidth=1.4; ctx.stroke();
+}
+
+function draw(now=performance.now()) {
+  const r=canvasSize();
+  ctx.clearRect(0,0,r.width,r.height);
+  ctx.fillStyle="#faf9f5"; ctx.fillRect(0,0,r.width,r.height);
+  if (!mapData?.ready) {
+    ctx.fillStyle="#777"; ctx.font="14px system-ui,sans-serif"; ctx.textAlign="center";
+    ctx.fillText(state?.status==="error"?state.error:"Loading street map…", r.width/2, r.height/2);
+    ctx.textAlign="left"; return;
+  }
+  drawStreets();
+  for (const ch of spatialChannels) drawSpatialGrid(ch, activeSeqStep);
+  drawPois();
+  for (const ch of spatialChannels) if (ch.sourcePoints?.length) drawSourcePoints(ch.sourcePoints, "rgba(108,158,255,0.85)");
+  if (state) {
+    for (const layer of state.layers||[]) drawLayer(layer);
+    const layers=Object.fromEntries((state.layers||[]).map(l=>[l.name,l]));
+    for (const agent of state.agents||[]) drawAgent(agent, layers[agent.layer]);
+  }
+}
+
+function updateStepBar() {
+  stepBar.innerHTML="";
+  const ch=spatialChannels[0];
+  if (!ch?.events?.length) { stepBarWrap.classList.remove("visible"); return; }
+  stepBarWrap.classList.add("visible");
+  ch.events.forEach((e,i)=>{
+    const d=document.createElement("div");
+    const hit=stepActs(e).some(a=>a.hit??e.hit);
+    d.className="step-cell"+(hit?" hit":"")+(i===activeSeqStep?" active":"");
+    stepBar.appendChild(d);
+  });
+}
+
+function updateLegend() {
+  const parts=[];
+  if (state?.layers?.length) parts.push(...state.layers.map(l=>`${l.name}·street`));
+  if (spatialChannels.length) parts.push(...spatialChannels.map(c=>`${c.label}·${c.config?.sound?.mode||"synth"}`));
+  legendEl.textContent = parts.length ? parts.join(" · ") : "Apply live.py — play() + l1… moving_agent";
+}
+
+window.onXypiStep = (step) => { activeSeqStep=step; updateStepBar(); draw(); };
+
+async function fetchJSON(path) {
+  const r=await fetch(`${API_BASE}${path}?t=${Date.now()}`,{cache:"no-store"});
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  return r.json();
+}
+async function fetchMapOnce() {
+  if (mapData||mapFetchInFlight) return;
+  mapFetchInFlight=true;
+  try {
+    mapData=await fetchJSON("/runtime/map.json");
+    if (!mapData.ready) throw new Error("map not ready");
+    draw();
+  } catch(e) { mapFetchInFlight=false; setTimeout(fetchMapOnce,1200); return; }
+  mapFetchInFlight=false;
+}
+async function pollState() {
+  try {
+    state=await fetchJSON("/runtime/state.json");
+    if (state.status==="error") statusEl.textContent=state.error;
+    else if (state.status==="map ready") {
+      if (!mapData) fetchMapOnce();
+      const chN=spatialChannels.length;
+      statusEl.textContent=`${state.location.name} · ${state.location.schools} schools · ${chN} channel(s) · ${state.layers?.length||0} street agent(s)`;
+    } else statusEl.textContent=state.status||"loading…";
+    updateLegend(); draw();
+    if (state.live?.error && !editorDirty) setEditorMessage(state.live.error.slice(0,300),"error");
+    if (!autoApplyAttempted && editorReady && !editorDirty && spatialChannels.length === 0 && state.status === "map ready") {
+      const src = (editor.value || "").trim();
+      if (!src) return;
+      const poiReady = (state.location?.schools || 0) + (state.location?.hospitals || 0) > 0;
+      if (poiReady || !src.includes("schools_pattern")) {
+        autoApplyAttempted = true;
+        applyLiveSource();
+      }
+    }
+  } catch(e) { statusEl.textContent=`state: ${e.message}`; }
+  setTimeout(pollState,160);
+}
+
+function setEditorMessage(t,k="") { editorMessage.textContent=t; editorMessage.className=k; }
+async function loadLiveSource() {
+  const r=await fetch(`${API_BASE}/api/live?t=${Date.now()}`);
+  const text=await r.text();
+  editor.value=text;
+  updateHighlight();
+  editorDirty=false;
+  editorReady=true;
+  if (!text.trim()) {
+    setEditorMessage("live.py is empty — click Reload or paste a script","error");
+    return;
+  }
+  setEditorMessage("Cmd/Ctrl+Enter to Apply (runs play + l1…)","ok");
+}
+async function applyLiveSource() {
+  const src=(editor.value||"").trim();
+  if (!src) { setEditorMessage("Nothing to apply — editor is empty","error"); return; }
+  setEditorMessage("Applying…");
+  try {
+    const r=await fetch(`${API_BASE}/api/live`,{method:"POST",headers:{"Content-Type":"text/plain; charset=utf-8"},body:editor.value});
+    const result=await r.json();
+    if (!r.ok||!result.ok) throw new Error(result.error||result.message||"Apply failed");
+    editorDirty=false;
+    refreshChannels(result.payloads||[]);
+    const names=(result.channels||[]).join(", ")||"no channels";
+    if ((result.payloads||[]).length) {
+      setEditorMessage(`Applied · ${names} — click ▶ Play`, "ok");
+    } else if (result.meta && Object.values(result.meta).some(m => m.output === "osc")) {
+      setEditorMessage(`OSC · ${names} (SuperCollider / Sonic Pi)`, "ok");
+    } else {
+      setEditorMessage(`Applied · ${names}`, "ok");
+    }
+  } catch(e) { setEditorMessage(String(e).slice(0,400),"error"); }
+}
+
+function refreshChannels(payloads) {
+  if (!payloads?.length) {
+    spatialChannels=[];
+    if (window.XYPIPlayer) XYPIPlayer.loadFromGeoJSONList([]);
+    updateLegend(); updateStepBar(); draw();
+    return;
+  }
+  loadSpatialChannels(payloads);
+  XYPIPlayer.loadFromGeoJSONList(payloads);
+  updateLegend(); draw();
+}
+
+editor.addEventListener("input",()=>{updateHighlight();editorDirty=true;setEditorMessage("Modified · Apply to run");});
+editor.addEventListener("keydown",e=>{
+  if (e.key==="Tab"){e.preventDefault();editor.setRangeText("    ",editor.selectionStart,editor.selectionEnd,"end");updateHighlight();editorDirty=true;}
+  if (e.key==="Enter"&&(e.metaKey||e.ctrlKey)){e.preventDefault();applyLiveSource();}
+});
+editor.addEventListener("scroll",syncHighlightScroll);
+document.getElementById("applyButton").onclick=applyLiveSource;
+document.getElementById("reloadButton").onclick=()=>{ if(!editorDirty||confirm("Reload from disk?")) loadLiveSource(); };
+document.getElementById("codeControlBtn").onclick=()=>setControlMode("code");
+document.getElementById("mapControlBtn").onclick=()=>setControlMode("map");
+setControlMode("code");
+document.getElementById("locationSelect").onchange=async function(){
+  mapData=null; mapFetchInFlight=false;
+  await fetch(`${API_BASE}/api/location`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({location:this.value})});
+};
+canvas.onmousedown=e=>{ if(controlMode!=="map")return; drag={x:e.clientX,y:e.clientY,panX:view.panX,panY:view.panY}; canvas.classList.add("dragging"); };
+window.onmousemove=e=>{ if(!drag)return; view.panX=drag.panX+(e.clientX-drag.x); view.panY=drag.panY+(e.clientY-drag.y); draw(); };
+window.onmouseup=()=>{ drag=null; canvas.classList.remove("dragging"); };
+canvas.ondblclick=()=>{ if(controlMode==="map") resetView(); };
+canvas.onwheel=e=>{
+  if(controlMode!=="map") return; e.preventDefault();
+  const r=canvas.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
+  const cx=r.width/2, cy=r.height/2, old=view.scale, f=e.deltaY<0?1.12:1/1.12;
+  view.scale=Math.max(view.minScale,Math.min(view.maxScale,view.scale*f));
+  const ratio=view.scale/old;
+  view.panX=mx-cx-(mx-cx-view.panX)*ratio; view.panY=my-cy-(my-cy-view.panY)*ratio; draw();
+};
+
+XYPIPlayer.init({ skipAutoLoad: true });
+document.getElementById("play-btn").onclick=()=>{
+  if (XYPIPlayer.play()) document.getElementById("play-btn").classList.add("playing");
+};
+document.getElementById("stop-btn").onclick=()=>{
+  XYPIPlayer.stop();
+  activeSeqStep=-1;
+  updateStepBar();
+  draw();
+  document.getElementById("play-btn").classList.remove("playing");
+};
+
+resize();
+(async () => {
+  await loadLiveSource();
+  pollState();
+  fetchJSON("/api/locations").then(d=>{ if(d.active) document.getElementById("locationSelect").value=d.active; }).catch(()=>{});
+  fetchJSON("/api/channels").then(d=>{ if(d.payloads?.length) refreshChannels(d.payloads); }).catch(()=>{});
+})();
+</script>
+</body>
+</html>

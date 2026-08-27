@@ -59,9 +59,17 @@ const XYPIPlayer = (() => {
     if (!audioCtx) {
       audioCtx = new AudioContext();
       masterGain = audioCtx.createGain();
+      masterGain.gain.value = mixMuted ? 0 : 1;
       masterGain.connect(audioCtx.destination);
     }
-    if (audioCtx.state === "suspended") audioCtx.resume();
+    if (audioCtx.state === "suspended") {
+      audioCtx.resume();
+    }
+  }
+
+  function unlockAudio() {
+    ensureAudio();
+    return Promise.resolve(audioCtx && audioCtx.state === "running");
   }
 
   function env(when, gain, dur, peak = 0.22) {
@@ -460,12 +468,29 @@ const XYPIPlayer = (() => {
     if (!playing) return;
     const step = Math.min(Math.floor(((audioCtx.currentTime - loopStart) % cycleDuration) / stepSec), nSteps - 1);
     if (step !== lastStep) { lastStep = step; triggerStep(step); }
+    if (typeof window.onXypiStep === "function") window.onXypiStep(step);
     renderAll(step);
     rafId = requestAnimationFrame(tick);
   }
 
-  function play() { if (!channels.length) return; ensureAudio(); playing = true; loopStart = audioCtx.currentTime; lastStep = -1; document.getElementById("play-btn").textContent = "▶ Playing…"; tick(); }
-  function stop() { playing = false; lastStep = -1; if (rafId) cancelAnimationFrame(rafId); document.getElementById("play-btn").textContent = "▶ Play"; renderAll(-1); }
+  function play() {
+    if (!channels.length) return false;
+    ensureAudio();
+    if (!audioCtx) return false;
+    playing = true;
+    loopStart = audioCtx.currentTime;
+    lastStep = -1;
+    const btn = document.getElementById("play-btn");
+    if (btn) btn.textContent = "▶ Playing…";
+    tick();
+    return true;
+  }
+  function stop() {
+    playing = false; lastStep = -1; if (rafId) cancelAnimationFrame(rafId);
+    const btn = document.getElementById("play-btn");
+    if (btn) btn.textContent = "▶ Play";
+    renderAll(-1);
+  }
   function setMixMuted(m) { mixMuted = m; document.getElementById("mute-all-btn").textContent = m ? "Unmute all" : "Mute all"; document.getElementById("mute-all-btn").classList.toggle("muted", m); if (masterGain) masterGain.gain.value = m ? 0 : 1; }
   function toggleChannelMute(i) { const ch = channels[i]; ch.muted = !ch.muted; ch.muteBtn.textContent = ch.muted ? "Unmute" : "Mute"; ch.muteBtn.classList.toggle("muted", ch.muted); ch.stripEl.classList.toggle("muted-strip", ch.muted); }
 
@@ -540,13 +565,25 @@ const XYPIPlayer = (() => {
   }
 
   async function init(options = {}) {
-    document.getElementById("play-btn").onclick = play;
-    document.getElementById("stop-btn").onclick = stop;
-    document.getElementById("mute-all-btn").onclick = () => setMixMuted(!mixMuted);
+    const playBtn = document.getElementById("play-btn");
+    const stopBtn = document.getElementById("stop-btn");
+    const muteBtn = document.getElementById("mute-all-btn");
+    if (playBtn) playBtn.onclick = () => { play(); };
+    if (stopBtn) stopBtn.onclick = stop;
+    if (muteBtn) muteBtn.onclick = () => setMixMuted(!mixMuted);
+    if (!options.skipUnlockListener) {
+      document.addEventListener("pointerdown", ensureAudio, { passive: true });
+      document.addEventListener("keydown", ensureAudio, { passive: true });
+    }
     if (options.skipAutoLoad) return;
     const urls = window.XYPI_DEFAULT_CHANNELS || [];
     if (urls.length) try { await loadAll(urls); } catch (e) { document.getElementById("status").textContent = e.message; }
   }
 
-  return { init, loadAll, loadFromGeoJSONList, play, stop };
+  return {
+    init, loadAll, loadFromGeoJSONList, play, stop, unlockAudio, ensureAudio, setMixMuted,
+    getChannels: () => channels, getStep: () => lastStep,
+    isPlaying: () => playing,
+    getAudioState: () => (audioCtx ? audioCtx.state : "none"),
+  };
 })();

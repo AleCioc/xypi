@@ -36,5 +36,6 @@ See the [repository README](../README.md) for setup and all experiments.
 | `experiment_3` | 8001 | Mixed geometries + radial time |
 | `experiment_4` | 8002 | Python REPL + live map mixer |
 | `experiment_5` | 8003 | `moving_points` REPL — sync/async, multi-mover graphs |
+| **Unified UI** | **8080** | Map agents + spatial channels — `python xypi/run.py` |
 
-Shared playback UI lives in `experiments/shared/viewer/`; REPL UI in `experiments/shared/repl/`.
+Shared playback UI lives in `experiments/shared/viewer/`; unified UI in `ui/`.

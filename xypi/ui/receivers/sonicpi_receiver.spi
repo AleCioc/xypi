@@ -1,0 +1,44 @@
+# XYPI receiver — load in Sonic Pi before running experiment_1/run.py
+#
+# OSC in: UDP port 4560 (Sonic Pi default)
+# Paths:
+#   /xypi/synth  [channel, midi, amp, step, x, y]
+#   /xypi/sample [channel, slot, amp, step, x, y]  slot 1-4
+#   /xypi/step   [step, bpm]
+
+use_bpm 150
+use_real_time
+
+set :xypi_synth_amp, 0.4
+set :xypi_sample_amp, 0.55
+
+define :xypi_sample_for do |slot|
+  case slot
+  when 1 then :bd_haus
+  when 2 then :sn_dolf
+  when 3 then :drum_cymbal_closed
+  else :elec_blip
+  end
+end
+
+live_loop :xypi_synth do
+  name, note, amp, step, x, y = sync "/osc*/xypi/synth"
+  synth :tri, note: note.to_i, amp: amp.to_f * get(:xypi_synth_amp),
+    release: 0.12, pan: (x.to_f - 8) / 16.0
+end
+
+live_loop :xypi_sample do
+  name, slot, amp, step, x, y = sync "/osc*/xypi/sample"
+  s = xypi_sample_for slot.to_i
+  sample s, amp: amp.to_f * get(:xypi_sample_amp),
+    pan: (y.to_f - 8) / 16.0
+end
+
+live_loop :xypi_step do
+  step, bpm = sync "/osc*/xypi/step"
+  use_bpm bpm.to_f
+  # uncomment for debug:
+  # puts "xypi step #{step.to_i} @ #{bpm.to_f} bpm"
+end
+
+puts "XYPI receiver ready — waiting for OSC on /xypi/synth, /xypi/sample, /xypi/step"

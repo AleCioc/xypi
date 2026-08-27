@@ -33,6 +33,7 @@ from xypi.experiments.experiment_4.templates import (
 )
 from xypi.spatial.geojson import channel_to_geojson_dict
 from xypi.spatial.moving_points import MoverConfig, MovingPointsConfig
+from xypi.spatial.moving_agent import moving_agent
 from xypi.spatial.patterns import (
     line_string,
     multi_line_string,
@@ -102,6 +103,7 @@ class ReplSession:
     def __init__(self) -> None:
         self._channels: dict[str, dict[str, Any]] = {}
         self._channel_meta: dict[str, dict[str, Any]] = {}
+        self._channel_runtime: dict[str, tuple[Channel, str]] = {}
         self._counter = 0
         self.namespace: dict[str, Any] = {}
         self._seed_namespace()
@@ -123,6 +125,7 @@ class ReplSession:
                 "MoverConfig": MoverConfig,
                 "MovingPointsConfig": MovingPointsConfig,
                 "MovingPointConfig": MovingPointsConfig,
+                "moving_agent": moving_agent,
                 "load_geojson": load_geojson,
                 "coords_gdf": coords_gdf,
                 "grid_coords": grid_coords,
@@ -157,7 +160,8 @@ class ReplSession:
             "play(gdf, name=None, x_axis=None, y_axis=None, time_flow=None, "
             "mode='synth', root_midi=48, pitch_range=12, n_steps=8, bpm=150, "
             "pitch_cells=6, octave_cells=4, release_cells=6, center_x=None, center_y=None, "
-            "moving_points=None, beats_per_step=1.0)\n"
+            "moving_points=None, beats_per_step=1.0, output='browser')\n"
+            "  output: 'browser' (WebAudio), 'osc' (SuperCollider/Sonic Pi), or 'both'\n"
             "  Defaults: time×pitch (time_flow='x'); "
             "moving_points → pitch×release automatically."
         )
@@ -183,10 +187,15 @@ class ReplSession:
         center_y: float | None = None,
         moving_points: MovingPointsConfig | None = None,
         beats_per_step: float = 1.0,
+        output: str = "browser",
     ) -> str:
         geometry = gdf_to_geometry(gdf)
         self._counter += 1
         channel_name = name or f"channel_{self._counter}"
+
+        out = str(output).strip().lower()
+        if out not in ("browser", "osc", "both"):
+            raise ValueError("output must be 'browser', 'osc', or 'both'")
 
         flow = _parse_flow(time_flow or "x")
         if moving_points is not None:
@@ -224,6 +233,7 @@ class ReplSession:
         hits = count_hits(channel)
         payload = channel_to_geojson_dict(channel, bpm=bpm)
         self._channels[channel_name] = payload
+        self._channel_runtime[channel_name] = (channel, out)
         self._channel_meta[channel_name] = {
             "name": channel_name,
             "hits": hits,
@@ -233,11 +243,12 @@ class ReplSession:
             "x_axis": x_role.value,
             "y_axis": y_role.value,
             "mode": mode,
+            "output": out,
             "source_points": len(channel.source_points),
         }
         print(
             f"▶ {channel_name}: {hits}/{n_steps} hits · {len(channel.source_points)} pts · "
-            f"grid {channel.grid_time}×{channel.grid_pitch} · time={config.time_flow.value}"
+            f"grid {channel.grid_time}×{channel.grid_pitch} · time={config.time_flow.value} · {out}"
         )
         return channel_name
 
@@ -246,11 +257,13 @@ class ReplSession:
             raise KeyError(f"Unknown channel {name!r} — use list_channels()")
         del self._channels[name]
         del self._channel_meta[name]
+        self._channel_runtime.pop(name, None)
         print(f"Stopped channel {name!r}")
 
     def clear(self) -> None:
         self._channels.clear()
         self._channel_meta.clear()
+        self._channel_runtime.clear()
         print("Cleared all channels")
 
     def list_channels(self) -> list[str]:
@@ -271,6 +284,15 @@ class ReplSession:
 
     def channel_names(self) -> list[str]:
         return list(self._channels.keys())
+
+    def channel_output_pairs(self) -> list[tuple[Channel, str]]:
+        return list(self._channel_runtime.values())
+
+    def browser_channel_names(self) -> list[str]:
+        return [name for name, (_, out) in self._channel_runtime.items() if out in ("browser", "both")]
+
+    def browser_payloads(self) -> list[dict[str, Any]]:
+        return [self._channels[name] for name in self.browser_channel_names()]
 
     def execute(self, code: str) -> dict[str, Any]:
         stdout = io.StringIO()
@@ -305,5 +327,6 @@ class ReplSession:
     def reset(self) -> None:
         self._channels.clear()
         self._channel_meta.clear()
+        self._channel_runtime.clear()
         self._counter = 0
         self._seed_namespace()
