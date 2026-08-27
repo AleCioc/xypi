@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XYPI Experiment 4 — REPL + Map</title>
+  <link rel="stylesheet" href="/shared/viewer/style.css">
+  <link rel="stylesheet" href="/shared/repl/style.css">
+</head>
+<body class="repl-layout">
+  <header>
+    <div class="header-row">
+      <div>
+        <h1>XYPI Experiment 4</h1>
+        <p class="subtitle">Python editor · GeoDataFrame variables · live map mixer</p>
+      </div>
+      <div class="mix-controls">
+        <button id="play-btn" type="button">&#9654; Play</button>
+        <button id="stop-btn" type="button">&#9632; Stop</button>
+        <button id="mute-all-btn" type="button">Mute all</button>
+        <button id="reset-btn" type="button">Reset REPL</button>
+        <span id="status">Ready</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <section class="terminal-panel">
+      <div class="panel-header">
+        <span>Python editor</span>
+        <div class="panel-actions">
+          <button id="templates-btn" type="button">Templates</button>
+          <button id="help-btn" type="button">Help</button>
+        </div>
+      </div>
+      <pre id="terminal-output" class="terminal-output"></pre>
+      <div class="terminal-input-wrap">
+        <textarea id="terminal-input" rows="4" spellcheck="false"
+          placeholder="Define GeoDataFrames, then call play(gdf, ...)  ·  Ctrl+Enter to run"></textarea>
+        <button id="run-btn" type="button">Run</button>
+      </div>
+    </section>
+
+    <section class="map-panel">
+      <div class="panel-header">
+        <span>Map mixer</span>
+        <span id="channel-count" class="channel-count">0 channels</span>
+      </div>
+      <main id="mixer"></main>
+    </section>
+  </div>
+
+  <script src="/shared/viewer/player.js"></script>
+  <script src="/shared/repl/terminal.js"></script>
+</body>
+</html>

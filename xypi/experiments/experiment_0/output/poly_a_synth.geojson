@@ -2,7 +2,7 @@
   "type": "FeatureCollection",
   "properties": {
     "xypi": {
-      "version": 3,
+      "version": 4,
       "bpm": 150,
       "channel": {
         "name": "poly_a_synth",
@@ -26,6 +26,7 @@
           "mode": "points-0",
           "pitch_cells": 5,
           "octave_cells": 4,
+          "release_cells": 6,
           "center_x": null,
           "center_y": null
         }
@@ -75,7 +76,29 @@
           "hit": true,
           "inside": true,
           "grid_col": 0,
-          "grid_row": 0
+          "grid_row": 0,
+          "activations": [
+            {
+              "x": 1.0,
+              "y": 1.0,
+              "grid_col": 0,
+              "grid_row": 0,
+              "midi": 36,
+              "value": 36.0,
+              "hit": true,
+              "release": 0.5
+            },
+            {
+              "x": 1.0,
+              "y": 5.0,
+              "grid_col": 0,
+              "grid_row": 3,
+              "midi": 44,
+              "value": 44.0,
+              "hit": true,
+              "release": 0.5
+            }
+          ]
         },
         {
           "step": 1,
@@ -114,7 +137,19 @@
           "hit": true,
           "inside": true,
           "grid_col": 3,
-          "grid_row": 4
+          "grid_row": 4,
+          "activations": [
+            {
+              "x": 4.0,
+              "y": 7.0,
+              "grid_col": 3,
+              "grid_row": 4,
+              "midi": 36,
+              "value": 36.0,
+              "hit": true,
+              "release": 0.5
+            }
+          ]
         },
         {
           "step": 4,
@@ -153,7 +188,19 @@
           "hit": true,
           "inside": true,
           "grid_col": 6,
-          "grid_row": 0
+          "grid_row": 0,
+          "activations": [
+            {
+              "x": 7.0,
+              "y": 1.0,
+              "grid_col": 6,
+              "grid_row": 0,
+              "midi": 36,
+              "value": 36.0,
+              "hit": true,
+              "release": 0.5
+            }
+          ]
         },
         {
           "step": 7,
@@ -166,7 +213,19 @@
           "hit": true,
           "inside": true,
           "grid_col": 7,
-          "grid_row": 3
+          "grid_row": 3,
+          "activations": [
+            {
+              "x": 8.0,
+              "y": 5.0,
+              "grid_col": 7,
+              "grid_row": 3,
+              "midi": 44,
+              "value": 44.0,
+              "hit": true,
+              "release": 0.5
+            }
+          ]
         }
       ]
     }

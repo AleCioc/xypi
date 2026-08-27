@@ -22,15 +22,18 @@ def schedule_channel(channel: Channel) -> list[ScheduledEvent]:
     events: list[ScheduledEvent] = []
     mode = channel.config.sound.mode
     for e in channel.events:
-        if e.hit and e.value > 0:
+        activations = e.activations if e.activations else ([e] if e.hit and e.value > 0 else [])
+        for a in activations:
+            if not a.hit or a.value <= 0:
+                continue
             events.append(
                 ScheduledEvent(
                     time_sec=e.time_sec,
                     channel=channel.config.name,
                     step=e.step,
-                    value=e.value,
-                    x=e.x,
-                    y=e.y,
+                    value=a.value,
+                    x=a.x,
+                    y=a.y,
                     mode=mode,
                 )
             )

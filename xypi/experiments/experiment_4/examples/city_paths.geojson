@@ -1,0 +1,54 @@
+{
+  "type": "FeatureCollection",
+  "name": "city_paths",
+  "crs": {
+    "type": "name",
+    "properties": { "name": "EPSG:4326" }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "main_street", "kind": "line" },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[1, 2], [3, 2.5], [5, 3], [7, 3.5], [9, 4], [11, 4.5], [13, 5], [15, 5.5]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "river_walk", "kind": "line" },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[2, 8], [4, 7.5], [6, 7], [8, 6.5], [10, 6], [12, 5.5], [14, 5]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "cross_avenue", "kind": "line" },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[4, 1], [4.5, 3], [5, 5], [5.5, 7], [6, 9], [6.5, 11], [7, 13]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "plaza", "kind": "point" },
+      "geometry": { "type": "Point", "coordinates": [8, 8] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "station_a", "kind": "point" },
+      "geometry": { "type": "Point", "coordinates": [3, 4] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "station_b", "kind": "point" },
+      "geometry": { "type": "Point", "coordinates": [12, 6] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "station_c", "kind": "point" },
+      "geometry": { "type": "Point", "coordinates": [6, 11] }
+    }
+  ]
+}

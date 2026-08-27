@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from xypi.channels.interpreter import interpret_channel
+from xypi.channels.interpreter import count_hits, interpret_channel
 from xypi.experiments.shared.setup import BPM, N_STEPS, build_composition, channel_summary
 from xypi.playback.osc_sender import OscPlayback, OscTarget
 
@@ -39,7 +39,7 @@ def main() -> None:
         geometry = composition.patterns[config.spatial_pattern_id]
         ch = interpret_channel(config, geometry)
         channels.append(ch)
-        hits = sum(1 for e in ch.events if e.hit)
+        hits = count_hits(ch)
         print(channel_summary(config, hits=hits, source_points=len(ch.source_points),
                               grid=(ch.grid_time, ch.grid_pitch)))
 
@@ -58,14 +58,16 @@ def main() -> None:
         parts = []
         for ch in channels:
             ev = ch.events[step]
-            if not ev.hit:
-                continue
-            mode = ch.config.sound.mode
-            if mode == "sample":
-                slot = int(ev.value)
-                parts.append(f"{ch.config.name}:{SAMPLE_NAMES[slot]}")
-            else:
-                parts.append(f"{ch.config.name}:midi{int(ev.value)}")
+            activations = ev.activations if ev.activations else ([ev] if ev.hit else [])
+            for note in activations:
+                if not note.hit:
+                    continue
+                mode = ch.config.sound.mode
+                if mode == "sample":
+                    slot = int(note.value)
+                    parts.append(f"{ch.config.name}:{SAMPLE_NAMES[slot]}")
+                else:
+                    parts.append(f"{ch.config.name}:midi{int(note.value)}")
         if parts:
             print(f"cycle {cycle + 1} step {step + 1}/{N_STEPS}  " + "  ".join(parts))
 

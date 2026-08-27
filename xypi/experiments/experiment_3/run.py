@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from xypi.channels.axes import AxisRole, TimeFlow
 from xypi.channels.config import ChannelConfig, Composition, SoundParams, TimeConfig
-from xypi.channels.interpreter import interpret_channel
+from xypi.channels.interpreter import interpret_channel, count_hits
 from xypi.experiments.shared.setup import BPM, N_STEPS, channel_summary
 from xypi.spatial.geojson import export_channel_geojson
 from xypi.spatial.patterns import (
@@ -117,7 +117,7 @@ def main() -> None:
         geometry = composition.patterns[config.spatial_pattern_id]
         channel = interpret_channel(config, geometry)
         export_channel_geojson(OUTPUT_DIR / f"{config.name}.geojson", channel, bpm=BPM)
-        hits = sum(1 for e in channel.events if e.hit)
+        hits = count_hits(channel)
         print(
             channel_summary(
                 config,

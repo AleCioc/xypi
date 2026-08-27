@@ -5,6 +5,7 @@ from typing import Any
 
 import geopandas as gpd
 from shapely.geometry import LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon, mapping
+from shapely.geometry import GeometryCollection
 from shapely.geometry.base import BaseGeometry
 
 
@@ -54,6 +55,24 @@ def multi_polygon(
     name: str = "multipolygon",
 ) -> SpatialPattern:
     return SpatialPattern(name=name, geometry=MultiPolygon([Polygon(c) for c in polygons]))
+
+
+def point_graph(
+    nodes: list[tuple[float, float]],
+    edges: list[tuple[int, int]],
+    *,
+    name: str = "point_graph",
+) -> SpatialPattern:
+    """MultiPoint nodes plus LineString edges (for moving_points time flow)."""
+    mp = MultiPoint([Point(x, y) for x, y in nodes])
+    if edges:
+        lines = MultiLineString(
+            [LineString([(nodes[a][0], nodes[a][1]), (nodes[b][0], nodes[b][1])]) for a, b in edges]
+        )
+        geometry: BaseGeometry = GeometryCollection([mp, lines])
+    else:
+        geometry = mp
+    return SpatialPattern(name=name, geometry=geometry)
 
 
 def geometry_to_feature_dict(spatial_id: str, geometry: BaseGeometry) -> dict[str, Any]:

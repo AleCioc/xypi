@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable
 
-from xypi.channels.interpreter import Channel, StepEvent
+from xypi.channels.interpreter import CellHit, Channel, StepEvent
 
 try:
     from pythonosc.udp_client import SimpleUDPClient
@@ -45,8 +45,15 @@ class OscPlayback:
     def connect(self) -> None:
         self._client = SimpleUDPClient(self.target.host, self.target.port)
 
-    def send_event(self, channel: Channel, event: StepEvent) -> None:
-        if not self._client or not event.hit or event.value <= 0:
+    def send_event(
+        self,
+        channel: Channel,
+        event: StepEvent,
+        *,
+        hit: CellHit | None = None,
+    ) -> None:
+        note = hit or event
+        if not self._client or not note.hit or note.value <= 0:
             return
         name = channel.config.name
         mode = channel.config.sound.mode
@@ -54,12 +61,12 @@ class OscPlayback:
         if mode == "sample":
             self._client.send_message(
                 self.target.sample_path,
-                [name, int(event.value), amp, event.step, float(event.x), float(event.y)],
+                [name, int(note.value), amp, event.step, float(note.x), float(note.y)],
             )
         else:
             self._client.send_message(
                 self.target.synth_path,
-                [name, int(event.value), amp, event.step, float(event.x), float(event.y)],
+                [name, int(note.value), amp, event.step, float(note.x), float(note.y)],
             )
 
     def send_step(self, step: int) -> None:
@@ -67,8 +74,15 @@ class OscPlayback:
             return
         self._client.send_message(self.target.step_path, [step, self.bpm])
         for channel in self.channels:
-            if step < len(channel.events):
-                self.send_event(channel, channel.events[step])
+            if step >= len(channel.events):
+                continue
+            event = channel.events[step]
+            if event.activations:
+                for activation in event.activations:
+                    if activation.hit:
+                        self.send_event(channel, event, hit=activation)
+            elif event.hit:
+                self.send_event(channel, event)
 
     def run_forever(
         self,

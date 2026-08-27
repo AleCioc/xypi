@@ -1,0 +1,496 @@
+{
+  "type": "FeatureCollection",
+  "properties": {
+    "xypi": {
+      "version": 4,
+      "bpm": 150,
+      "channel": {
+        "name": "islands_sample",
+        "spatial_pattern_id": "islands",
+        "x_axis": "pitch",
+        "y_axis": "release",
+        "sound": {
+          "mode": "sample",
+          "root_midi": 0,
+          "pitch_range": 4,
+          "note_semitones": 12
+        },
+        "time": {
+          "n_steps": 8,
+          "bpm": 150,
+          "beats_per_step": 1.0,
+          "time_pattern": 1,
+          "flow": "moving_point"
+        },
+        "space": {
+          "mode": "points-0",
+          "pitch_cells": 6,
+          "octave_cells": 4,
+          "release_cells": 5,
+          "center_x": null,
+          "center_y": null,
+          "moving_point": {
+            "movement": "sync",
+            "speed": 1.0,
+            "edges": [
+              [
+                0,
+                1
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            "path": [
+              0,
+              1,
+              0,
+              1,
+              0,
+              1,
+              0,
+              1
+            ],
+            "start_node": 0,
+            "loop": true
+          }
+        }
+      },
+      "grid": {
+        "time": 8,
+        "pitch": 6
+      },
+      "grid_layout": {
+        "time_flow": "moving_point",
+        "time_cells": 8,
+        "pitch_cells": 6,
+        "time_axis": "moving_point",
+        "pitch_axis": "x",
+        "release_axis": "y",
+        "release_cells": 5
+      },
+      "source_points": [
+        {
+          "x": 1.0,
+          "y": 1.0
+        },
+        {
+          "x": 3.0,
+          "y": 3.0
+        },
+        {
+          "x": 10.0,
+          "y": 1.0
+        },
+        {
+          "x": 12.0,
+          "y": 4.0
+        }
+      ],
+      "events": [
+        {
+          "step": 0,
+          "time_beats": 0.0,
+          "time_sec": 0.0,
+          "x": 1.0,
+          "y": 1.0,
+          "midi": 0,
+          "value": 1.0,
+          "hit": true,
+          "inside": true,
+          "grid_col": 0,
+          "grid_row": 0,
+          "activations": [
+            {
+              "x": 1.0,
+              "y": 1.0,
+              "grid_col": 0,
+              "grid_row": 0,
+              "midi": 0,
+              "value": 1.0,
+              "hit": true,
+              "release": 0.0
+            }
+          ]
+        },
+        {
+          "step": 1,
+          "time_beats": 1.0,
+          "time_sec": 0.4,
+          "x": 3.0,
+          "y": 3.0,
+          "midi": 0,
+          "value": 1.0,
+          "hit": true,
+          "inside": true,
+          "grid_col": 1,
+          "grid_row": 3,
+          "activations": [
+            {
+              "x": 3.0,
+              "y": 3.0,
+              "grid_col": 1,
+              "grid_row": 3,
+              "midi": 0,
+              "value": 1.0,
+              "hit": true,
+              "release": 0.6666666666666666
+            }
+          ]
+        },
+        {
+          "step": 2,
+          "time_beats": 2.0,
+          "time_sec": 0.8,
+          "x": 1.0,
+          "y": 1.0,
+          "midi": 0,
+          "value": 1.0,
+          "hit": true,
+          "inside": true,
+          "grid_col": 0,
+          "grid_row": 0,
+          "activations": [
+            {
+              "x": 1.0,
+              "y": 1.0,
+              "grid_col": 0,
+              "grid_row": 0,
+              "midi": 0,
+              "value": 1.0,
+              "hit": true,
+              "release": 0.0
+            }
+          ]
+        },
+        {
+          "step": 3,
+          "time_beats": 3.0,
+          "time_sec": 1.2000000000000002,
+          "x": 3.0,
+          "y": 3.0,
+          "midi": 0,
+          "value": 1.0,
+          "hit": true,
+          "inside": true,
+          "grid_col": 1,
+          "grid_row": 3,
+          "activations": [
+            {
+              "x": 3.0,
+              "y": 3.0,
+              "grid_col": 1,
+              "grid_row": 3,
+              "midi": 0,
+              "value": 1.0,
+              "hit": true,
+              "release": 0.6666666666666666
+            }
+          ]
+        },
+        {
+          "step": 4,
+          "time_beats": 4.0,
+          "time_sec": 1.6,
+          "x": 1.0,
+          "y": 1.0,
+          "midi": 0,
+          "value": 1.0,
+          "hit": true,
+          "inside": true,
+          "grid_col": 0,
+          "grid_row": 0,
+          "activations": [
+            {
+              "x": 1.0,
+              "y": 1.0,
+              "grid_col": 0,
+              "grid_row": 0,
+              "midi": 0,
+              "value": 1.0,
+              "hit": true,
+              "release": 0.0
+            }
+          ]
+        },
+        {
+          "step": 5,
+          "time_beats": 5.0,
+          "time_sec": 2.0,
+          "x": 3.0,
+          "y": 3.0,
+          "midi": 0,
+          "value": 1.0,
+          "hit": true,
+          "inside": true,
+          "grid_col": 1,
+          "grid_row": 3,
+          "activations": [
+            {
+              "x": 3.0,
+              "y": 3.0,
+              "grid_col": 1,
+              "grid_row": 3,
+              "midi": 0,
+              "value": 1.0,
+              "hit": true,
+              "release": 0.6666666666666666
+            }
+          ]
+        },
+        {
+          "step": 6,
+          "time_beats": 6.0,
+          "time_sec": 2.4000000000000004,
+          "x": 1.0,
+          "y": 1.0,
+          "midi": 0,
+          "value": 1.0,
+          "hit": true,
+          "inside": true,
+          "grid_col": 0,
+          "grid_row": 0,
+          "activations": [
+            {
+              "x": 1.0,
+              "y": 1.0,
+              "grid_col": 0,
+              "grid_row": 0,
+              "midi": 0,
+              "value": 1.0,
+              "hit": true,
+              "release": 0.0
+            }
+          ]
+        },
+        {
+          "step": 7,
+          "time_beats": 7.0,
+          "time_sec": 2.8000000000000003,
+          "x": 3.0,
+          "y": 3.0,
+          "midi": 0,
+          "value": 1.0,
+          "hit": true,
+          "inside": true,
+          "grid_col": 1,
+          "grid_row": 3,
+          "activations": [
+            {
+              "x": 3.0,
+              "y": 3.0,
+              "grid_col": 1,
+              "grid_row": 3,
+              "midi": 0,
+              "value": 1.0,
+              "hit": true,
+              "release": 0.6666666666666666
+            }
+          ]
+        }
+      ],
+      "moving_point": {
+        "movement": "sync",
+        "speed": 1.0,
+        "nodes": [
+          {
+            "index": 0,
+            "x": 1.0,
+            "y": 1.0
+          },
+          {
+            "index": 1,
+            "x": 3.0,
+            "y": 3.0
+          },
+          {
+            "index": 2,
+            "x": 10.0,
+            "y": 1.0
+          },
+          {
+            "index": 3,
+            "x": 12.0,
+            "y": 4.0
+          }
+        ],
+        "edges": [
+          [
+            0,
+            1
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        "path": [
+          0,
+          1,
+          0,
+          1,
+          0,
+          1,
+          0,
+          1
+        ],
+        "positions": [
+          {
+            "step": 0,
+            "x": 1.0,
+            "y": 1.0,
+            "node_index": 0,
+            "edge": null,
+            "edge_t": 0.0,
+            "arrival": true
+          },
+          {
+            "step": 1,
+            "x": 3.0,
+            "y": 3.0,
+            "node_index": 1,
+            "edge": [
+              0,
+              1
+            ],
+            "edge_t": 1.0,
+            "arrival": true
+          },
+          {
+            "step": 2,
+            "x": 1.0,
+            "y": 1.0,
+            "node_index": 0,
+            "edge": [
+              1,
+              0
+            ],
+            "edge_t": 1.0,
+            "arrival": true
+          },
+          {
+            "step": 3,
+            "x": 3.0,
+            "y": 3.0,
+            "node_index": 1,
+            "edge": [
+              0,
+              1
+            ],
+            "edge_t": 1.0,
+            "arrival": true
+          },
+          {
+            "step": 4,
+            "x": 1.0,
+            "y": 1.0,
+            "node_index": 0,
+            "edge": [
+              1,
+              0
+            ],
+            "edge_t": 1.0,
+            "arrival": true
+          },
+          {
+            "step": 5,
+            "x": 3.0,
+            "y": 3.0,
+            "node_index": 1,
+            "edge": [
+              0,
+              1
+            ],
+            "edge_t": 1.0,
+            "arrival": true
+          },
+          {
+            "step": 6,
+            "x": 1.0,
+            "y": 1.0,
+            "node_index": 0,
+            "edge": [
+              1,
+              0
+            ],
+            "edge_t": 1.0,
+            "arrival": true
+          },
+          {
+            "step": 7,
+            "x": 3.0,
+            "y": 3.0,
+            "node_index": 1,
+            "edge": [
+              0,
+              1
+            ],
+            "edge_t": 1.0,
+            "arrival": true
+          }
+        ]
+      }
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "islands",
+      "properties": {
+        "xypi_id": "islands"
+      },
+      "geometry": {
+        "type": "GeometryCollection",
+        "geometries": [
+          {
+            "type": "MultiPoint",
+            "coordinates": [
+              [
+                1.0,
+                1.0
+              ],
+              [
+                3.0,
+                3.0
+              ],
+              [
+                10.0,
+                1.0
+              ],
+              [
+                12.0,
+                4.0
+              ]
+            ]
+          },
+          {
+            "type": "MultiLineString",
+            "coordinates": [
+              [
+                [
+                  1.0,
+                  1.0
+                ],
+                [
+                  3.0,
+                  3.0
+                ]
+              ],
+              [
+                [
+                  10.0,
+                  1.0
+                ],
+                [
+                  12.0,
+                  4.0
+                ]
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

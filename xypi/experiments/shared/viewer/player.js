@@ -5,6 +5,24 @@ const XYPIPlayer = (() => {
   const PAD = 36;
   const CANVAS_H = 360;
   const SAMPLE_NAMES = ["", "kick", "snare", "hat", "blip"];
+  const MOVER_COLORS = ["#f97316", "#a78bfa", "#4ade80", "#f472b6", "#38bdf8", "#facc15"];
+
+  function normalizeMovingPoints(raw) {
+    if (!raw) return null;
+    if (raw.movers) return raw;
+    if (raw.positions) {
+      return {
+        nodes: raw.nodes,
+        edges: raw.edges,
+        movers: [{ name: "mover_0", movement: raw.movement, positions: raw.positions }],
+      };
+    }
+    return raw;
+  }
+
+  function isMovingPointsFlow(flow) {
+    return flow === "moving_points" || flow === "moving_point";
+  }
 
   let channels = [], audioCtx = null, masterGain = null;
   let playing = false, mixMuted = false, rafId = null;
@@ -27,6 +45,10 @@ const XYPIPlayer = (() => {
       const oct = ch.config.space?.octave_cells || 4;
       return { flow, cols: p, rows: oct, timeCells: t, pitchCells: p };
     }
+    if (isMovingPointsFlow(flow)) {
+      const rel = ch.gridLayout?.release_cells || ch.config.space?.release_cells || 6;
+      return { flow: "moving_points", cols: p, rows: rel, timeCells: t, pitchCells: p, releaseCells: rel };
+    }
     if (flow === "y") return { flow, cols: p, rows: t, timeCells: t, pitchCells: p };
     return { flow, cols: t, rows: p, timeCells: t, pitchCells: p };
   }
@@ -48,18 +70,19 @@ const XYPIPlayer = (() => {
     gain.gain.exponentialRampToValueAtTime(0.001, when + dur);
   }
 
-  function playSynth(midi, dur = 0.28) {
+  function playSynth(midi, dur = 0.28, release = 0.5) {
     const when = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.type = "sine";
     osc.frequency.value = midiToFreq(midi);
-    env(when, gain, dur);
+    const relDur = 0.06 + Math.max(0.05, release) * 0.55;
+    env(when, gain, relDur, 0.22);
     osc.connect(gain); gain.connect(masterGain);
-    osc.start(when); osc.stop(when + dur + 0.05);
+    osc.start(when); osc.stop(when + relDur + 0.05);
   }
 
-  function playSample(slot, dur = 0.2) {
+  function playSample(slot, dur = 0.2, level = 0.55) {
     const when = audioCtx.currentTime;
     const gain = audioCtx.createGain();
     gain.connect(masterGain);
@@ -71,7 +94,7 @@ const XYPIPlayer = (() => {
     else if (slot === 3) for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-22 * i / n);
     else for (let i = 0; i < n; i++) { const t = i / audioCtx.sampleRate; d[i] = Math.sin(2 * Math.PI * 220 * t) * Math.exp(-6 * t); }
     const src = audioCtx.createBufferSource();
-    src.buffer = buf; env(when, gain, dur, 0.35);
+    src.buffer = buf; env(when, gain, dur, 0.35 * Math.max(0.15, level));
     src.connect(gain); src.start(when);
   }
 
@@ -79,8 +102,9 @@ const XYPIPlayer = (() => {
     if (mixMuted || ch.muted || !masterGain) return;
     const val = e.value ?? e.midi;
     if (!val) return;
-    if ((ch.config.sound?.mode || "synth") === "sample") playSample(Math.round(val));
-    else playSynth(Math.round(val));
+    const rel = e.release ?? 0.5;
+    if ((ch.config.sound?.mode || "synth") === "sample") playSample(Math.round(val), 0.2, rel);
+    else playSynth(Math.round(val), 0.28, rel);
   }
 
   function parseGeoJSON(data, label) {
@@ -96,6 +120,7 @@ const XYPIPlayer = (() => {
       grid: props.grid || { time: 8, pitch: 8 },
       gridLayout: props.grid_layout || {},
       radial: props.radial || null,
+      movingPoints: normalizeMovingPoints(props.moving_points || props.moving_point),
       bounds: computeBounds(data.features[0].geometry),
       muted: false,
     };
@@ -111,6 +136,7 @@ const XYPIPlayer = (() => {
   }
 
   function allCoords(geom) {
+    if (geom.type === "GeometryCollection") return geom.geometries.flatMap(allCoords);
     if (geom.type === "Point") return [geom.coordinates];
     if (geom.type === "MultiPoint") return geom.coordinates;
     if (geom.type === "LineString") return geom.coordinates;
@@ -144,6 +170,37 @@ const XYPIPlayer = (() => {
     return { x0, y0, x1, y1 };
   }
 
+  function paddedGridBounds(bounds, cols, rows) {
+    const padX = bounds.width / (2 * Math.max(cols, 1));
+    const padY = bounds.height / (2 * Math.max(rows, 1));
+    return {
+      minX: bounds.minX - padX,
+      minY: bounds.minY - padY,
+      maxX: bounds.maxX + padX,
+      maxY: bounds.maxY + padY,
+      width: bounds.width + 2 * padX,
+      height: bounds.height + 2 * padY,
+    };
+  }
+
+  function effectiveGridBounds(ch, dims) {
+    const gb = ch.gridLayout?.grid_bounds;
+    if (gb) {
+      return {
+        minX: gb.minx,
+        minY: gb.miny,
+        maxX: gb.maxx,
+        maxY: gb.maxy,
+        width: gb.maxx - gb.minx || 1,
+        height: gb.maxy - gb.miny || 1,
+      };
+    }
+    if (isMovingPointsFlow(dims.flow)) {
+      return paddedGridBounds(ch.bounds, dims.cols, dims.rows);
+    }
+    return ch.bounds;
+  }
+
   function drawCellRect(c, rect, bounds, canvas, fill) {
     const [cx0, cy0] = worldToCanvas(rect.x0, rect.y1, bounds, canvas);
     const [cx1, cy1] = worldToCanvas(rect.x1, rect.y0, bounds, canvas);
@@ -151,37 +208,51 @@ const XYPIPlayer = (() => {
     c.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0);
   }
 
+  function stepActivations(event) {
+    if (!event) return [];
+    if (event.activations?.length) return event.activations;
+    return [event];
+  }
+
   function drawGrid(ch, canvas, activeStep) {
     const c = ch.canvas.getContext("2d");
     const { bounds } = ch;
     const dims = gridDims(ch);
+    const gridB = effectiveGridBounds(ch, dims);
 
     c.strokeStyle = "rgba(42, 47, 61, 0.95)";
     c.lineWidth = 1;
     for (let i = 1; i < dims.cols; i++) {
-      const x = bounds.minX + (bounds.width * i) / dims.cols;
+      const x = gridB.minX + (gridB.width * i) / dims.cols;
       const [cx] = worldToCanvas(x, bounds.minY, bounds, canvas);
       c.beginPath(); c.moveTo(cx, PAD); c.lineTo(cx, canvas.height - PAD); c.stroke();
     }
     for (let j = 1; j < dims.rows; j++) {
-      const y = bounds.minY + (bounds.height * j) / dims.rows;
+      const y = gridB.minY + (gridB.height * j) / dims.rows;
       const [, cy] = worldToCanvas(bounds.minX, y, bounds, canvas);
       c.beginPath(); c.moveTo(PAD, cy); c.lineTo(canvas.width - PAD, cy); c.stroke();
     }
 
-    // Active pitch cells (same technique for x-time and y-time)
+    const mpFlow = isMovingPointsFlow(dims.flow);
+    const eventsToDraw = mpFlow && activeStep >= 0
+      ? [ch.events[activeStep]].filter(Boolean)
+      : ch.events;
+
     const seen = new Set();
-    ch.events.forEach((e) => {
-      if (e.grid_col < 0 || e.grid_row < 0) return;
-      const key = `${e.grid_col},${e.grid_row}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      const rect = cellWorldRect(e.grid_col, e.grid_row, dims, bounds);
-      drawCellRect(c, rect, bounds, canvas, e.hit ? "rgba(74, 222, 128, 0.12)" : "rgba(108, 158, 255, 0.06)");
+    eventsToDraw.forEach((e) => {
+      stepActivations(e).forEach((a) => {
+        if (a.grid_col < 0 || a.grid_row < 0) return;
+        const key = `${a.grid_col},${a.grid_row}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        const rect = cellWorldRect(a.grid_col, a.grid_row, dims, gridB);
+        const isHit = a.hit ?? e.hit;
+        drawCellRect(c, rect, bounds, canvas, isHit ? "rgba(74, 222, 128, 0.22)" : "rgba(108, 158, 255, 0.06)");
+      });
     });
 
-    // Current step: time band (column for x, row for y)
-    if (activeStep >= 0 && dims.flow !== "radial") {
+    // Current step: time band (column for x, row for y) — not for moving_point / radial
+    if (activeStep >= 0 && dims.flow !== "radial" && !isMovingPointsFlow(dims.flow)) {
       if (dims.flow === "x") {
         const rect = cellWorldRect(activeStep, 0, { cols: dims.timeCells, rows: 1 }, bounds);
         rect.y1 = bounds.maxY; rect.y0 = bounds.minY;
@@ -210,7 +281,34 @@ const XYPIPlayer = (() => {
       c.beginPath(); c.arc(ccx, ccy, rOuter, 0, Math.PI * 2); c.fill();
     }
 
+    if (isMovingPointsFlow(dims.flow) && ch.movingPoints && activeStep >= 0) {
+      (ch.movingPoints.movers || []).forEach((m, i) => {
+        const pos = m.positions?.[activeStep];
+        if (!pos) return;
+        const [mx, my] = worldToCanvas(pos.x, pos.y, bounds, canvas);
+        c.beginPath(); c.arc(mx, my, 8, 0, Math.PI * 2);
+        c.fillStyle = MOVER_COLORS[i % MOVER_COLORS.length];
+        c.fill();
+        c.strokeStyle = "#fff"; c.lineWidth = 2; c.stroke();
+      });
+    }
+
     drawAxisLabel(c, canvas, dims.flow);
+  }
+
+  function drawMovingPointsGraph(ch, canvas) {
+    if (!ch.movingPoints) return;
+    const c = canvas.getContext("2d");
+    const { bounds } = ch;
+    for (const edge of ch.movingPoints.edges || []) {
+      const a = ch.movingPoints.nodes?.[edge[0]];
+      const b = ch.movingPoints.nodes?.[edge[1]];
+      if (!a || !b) continue;
+      const [x0, y0] = worldToCanvas(a.x, a.y, bounds, canvas);
+      const [x1, y1] = worldToCanvas(b.x, b.y, bounds, canvas);
+      c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1);
+      c.strokeStyle = "rgba(108, 158, 255, 0.45)"; c.lineWidth = 2; c.stroke();
+    }
   }
 
   function drawAxisLabel(c, canvas, flow) {
@@ -225,6 +323,10 @@ const XYPIPlayer = (() => {
       c.fillText("time ↑", PAD + 4, PAD + 12);
       c.fillStyle = "#8b92a5";
       c.fillText("pitch →", canvas.width - PAD - 48, canvas.height - 10);
+    } else if (isMovingPointsFlow(flow)) {
+      c.fillText("moving points ⊙", PAD + 4, PAD + 12);
+      c.fillStyle = "#8b92a5";
+      c.fillText("pitch →  release ↑", canvas.width - PAD - 120, canvas.height - 10);
     } else {
       c.fillText("radial time ⊙", PAD + 4, PAD + 12);
       c.fillStyle = "#8b92a5";
@@ -236,6 +338,17 @@ const XYPIPlayer = (() => {
     const c = ch.canvas.getContext("2d");
     const { geometry: geom, bounds } = ch;
     const type = geom.type;
+
+    if (type === "GeometryCollection") {
+      drawMovingPointsGraph(ch, canvas);
+      for (const pt of ch.sourcePoints) {
+        const [cx, cy] = worldToCanvas(pt.x, pt.y, bounds, canvas);
+        c.beginPath(); c.arc(cx, cy, 5, 0, Math.PI * 2);
+        c.fillStyle = "#6c9eff"; c.fill();
+        c.strokeStyle = "#fff"; c.lineWidth = 1; c.stroke();
+      }
+      return;
+    }
 
     if (type === "MultiPoint" || type === "Point") {
       for (const [x, y] of allCoords(geom)) {
@@ -279,26 +392,38 @@ const XYPIPlayer = (() => {
 
     const ev = ch.events[activeStep];
     if (ev && ev.inside) {
-      const [cx, cy] = worldToCanvas(ev.x, ev.y, ch.bounds, canvas);
-      c.beginPath(); c.arc(cx, cy, 10, 0, Math.PI * 2);
-      c.fillStyle = ev.hit ? "#4ade80" : "#f97316";
-      c.fill(); c.strokeStyle = "#fff"; c.lineWidth = 2; c.stroke();
+      stepActivations(ev).forEach((a) => {
+        const [cx, cy] = worldToCanvas(a.x, a.y, ch.bounds, canvas);
+        c.beginPath(); c.arc(cx, cy, 10, 0, Math.PI * 2);
+        c.fillStyle = (a.hit ?? ev.hit) ? "#4ade80" : "#f97316";
+        c.fill(); c.strokeStyle = "#fff"; c.lineWidth = 2; c.stroke();
+      });
     }
 
     ch.stepBar.innerHTML = "";
     ch.events.forEach((e, i) => {
       const cell = document.createElement("div");
-      cell.className = "step-cell" + (e.hit ? " hit" : "") + (i === activeStep ? " active" : "");
+      const anyHit = stepActivations(e).some((a) => a.hit ?? e.hit);
+      cell.className = "step-cell" + (anyHit ? " hit" : "") + (i === activeStep ? " active" : "");
       ch.stepBar.appendChild(cell);
     });
 
     const flow = inferTimeFlow(ch.config, ch.gridLayout);
-    const flowLabel = flow === "y" ? "vertical time" : flow === "radial" ? "radial time" : "horizontal time";
+    const flowLabel = flow === "y" ? "vertical time" : flow === "radial" ? "radial time" : isMovingPointsFlow(flow) ? "moving points" : "horizontal time";
     const stepLabel = ch.stripEl.querySelector(".step-label");
     if (activeStep >= 0 && ev) {
       const mode = ch.config.sound?.mode || "synth";
-      const val = ev.hit ? (mode === "sample" ? SAMPLE_NAMES[Math.round(ev.value)] || ev.value : `midi ${Math.round(ev.value)}`) : "rest";
-      stepLabel.textContent = `${flowLabel} · step ${activeStep + 1} · ${val}`;
+      const hits = stepActivations(ev).filter((a) => a.hit ?? ev.hit);
+      if (hits.length) {
+        const vals = hits.map((a) => {
+          const val = a.value ?? a.midi;
+          const label = mode === "sample" ? SAMPLE_NAMES[Math.round(val)] || val : `midi ${Math.round(val)}`;
+          return a.mover ? `${a.mover}:${label}` : label;
+        });
+        stepLabel.textContent = `${flowLabel} · step ${activeStep + 1} · ${vals.join(", ")}`;
+      } else {
+        stepLabel.textContent = `${flowLabel} · step ${activeStep + 1} · rest`;
+      }
     } else {
       stepLabel.textContent = `${flowLabel} · ${ch.events.length} steps`;
     }
@@ -320,7 +445,16 @@ const XYPIPlayer = (() => {
     renderAll(lastStep);
   }
 
-  function triggerStep(step) { channels.forEach(ch => { if (!ch.muted) { const e = ch.events[step]; if (e?.hit) playHit(ch, e); } }); }
+  function triggerStep(step) {
+    channels.forEach(ch => {
+      if (ch.muted) return;
+      const e = ch.events[step];
+      if (!e) return;
+      stepActivations(e).forEach((a) => {
+        if (a.hit ?? e.hit) playHit(ch, a);
+      });
+    });
+  }
 
   function tick() {
     if (!playing) return;
@@ -339,6 +473,11 @@ const XYPIPlayer = (() => {
     const f = inferTimeFlow(ch.config, ch.gridLayout);
     if (f === "y") return "vertical time (y)";
     if (f === "radial") return "radial time";
+    if (isMovingPointsFlow(f)) {
+      const n = ch.movingPoints?.movers?.length || 1;
+      const modes = (ch.movingPoints?.movers || []).map((m) => m.movement).join("+") || "sync";
+      return n > 1 ? `moving points (${n}× ${modes})` : `moving points (${modes})`;
+    }
     return "horizontal time (x)";
   }
 
@@ -388,13 +527,26 @@ const XYPIPlayer = (() => {
     buildMixerUI(); renderAll(-1);
   }
 
-  async function init() {
+  function loadFromGeoJSONList(payloads) {
+    channels = payloads.map((data, i) => {
+      const label = data.properties?.xypi?.channel?.name || `channel_${i + 1}`;
+      return parseGeoJSON(data, label);
+    });
+    if (channels.length) {
+      bpm = channels[0].bpm; nSteps = channels[0].events.length;
+      stepSec = 60 / bpm; cycleDuration = nSteps * stepSec;
+    }
+    buildMixerUI(); renderAll(-1);
+  }
+
+  async function init(options = {}) {
     document.getElementById("play-btn").onclick = play;
     document.getElementById("stop-btn").onclick = stop;
     document.getElementById("mute-all-btn").onclick = () => setMixMuted(!mixMuted);
+    if (options.skipAutoLoad) return;
     const urls = window.XYPI_DEFAULT_CHANNELS || [];
     if (urls.length) try { await loadAll(urls); } catch (e) { document.getElementById("status").textContent = e.message; }
   }
 
-  return { init, loadAll, play, stop };
+  return { init, loadAll, loadFromGeoJSONList, play, stop };
 })();

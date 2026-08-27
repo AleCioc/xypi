@@ -52,6 +52,38 @@ class SoundParams:
         norm = (coord - min_coord) / span
         return int(norm * 4) % 4 + 1
 
+    def release_from_coord(self, coord: float, *, min_coord: float, max_coord: float) -> float:
+        span = max(max_coord - min_coord, 1e-9)
+        return max(0.0, min(1.0, (coord - min_coord) / span))
+
+    def synth_pitch_release(
+        self,
+        px: float,
+        py: float,
+        *,
+        minx: float,
+        maxx: float,
+        miny: float,
+        maxy: float,
+    ) -> tuple[int, float]:
+        midi = self.pitch_to_midi(px, min_coord=minx, max_coord=maxx)
+        release = self.release_from_coord(py, min_coord=miny, max_coord=maxy)
+        return midi, release
+
+    def sample_slot_level(
+        self,
+        px: float,
+        py: float,
+        *,
+        minx: float,
+        maxx: float,
+        miny: float,
+        maxy: float,
+    ) -> tuple[int, float]:
+        slot = self.pitch_to_sample(px, min_coord=minx, max_coord=maxx)
+        level = self.release_from_coord(py, min_coord=miny, max_coord=maxy)
+        return slot, level
+
     def value_from_coord(
         self,
         coord: float,
@@ -131,6 +163,8 @@ class ChannelConfig:
         x_axis = AxisRole(data["x_axis"])
         y_axis = AxisRole(data["y_axis"])
         flow_raw = time.get("flow")
+        if flow_raw == "moving_point":
+            flow_raw = "moving_points"
         flow = TimeFlow(flow_raw) if flow_raw else None
         resolved = resolve_time_flow(x_axis=x_axis, y_axis=y_axis, flow=flow)
         return cls(
