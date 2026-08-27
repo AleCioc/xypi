@@ -22,7 +22,7 @@ def help_payload() -> dict:
         "play": _session.help_play(),
         "examples": [
             "pts = multipoint([(2,2), (4,4), (6,2), (5,5)]).to_geodataframe()",
-            "play(pts, name='scatter', x_axis='time', y_axis='pitch')",
+            "play(pts, name='scatter')",
             "grid = coords_gdf([(x, y) for x in range(1, 9) for y in range(1, 7)])",
             "play(grid, name='grid', pitch_cells=6)",
             "paths = load_geojson('city_paths.geojson')",
