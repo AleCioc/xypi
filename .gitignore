@@ -11,3 +11,8 @@ venv/
 .env
 .DS_Store
 .idea/
+
+
+XYPI_v2/__pycache__/*
+XYPI_v2/cache/*
+XYPI_v2/runtime/*
