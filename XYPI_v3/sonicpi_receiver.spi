@@ -1,8 +1,7 @@
 # XYPI Sonic Pi receiver — simple mirror of supercollider_receiver.scd
 #
 # Sonic Pi listens on UDP 4560. Start XYPI with:
-#   python xypi/run.py --osc-port 4560
-#   python XYPI_v3/run.py --osc-port 4560
+#   python run.py --osc-port 4560
 #
 # /xypi/corner  connectionName  soundName  y  x  duration
 #

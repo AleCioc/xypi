@@ -15,7 +15,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--location", choices=sorted(MAP_PRESETS), default=DEFAULT_LOCATION)
     p.add_argument("--zoom", type=float, default=None)
     p.add_argument("--osc-host", default="127.0.0.1")
-    p.add_argument("--osc-port", type=int, default=57120)
+    p.add_argument("--osc-port", type=int, default=4560)
     p.add_argument("--live", type=Path, default=None)
     p.add_argument("--list-locations", action="store_true")
     return p.parse_args()
